@@ -1,6 +1,7 @@
-﻿from comparison.type_compare         import compare_types
+from comparison.type_compare         import compare_types
 from comparison.bundle_compare       import compare_bundle_slots
 from comparison.configurable_compare import compare_configurable_children
+from reporting.html_reporter         import generate_html_report
 
 def compare_product(
     pim_sku:    str,
@@ -45,3 +46,8 @@ def batch_compare(pim_map: dict, france_map: dict, id_to_sku: dict) -> list:
         compare_product(sku, pim_map, france_map, id_to_sku)
         for sku in sorted(pim_map)
     ]
+
+def batch_compare_html(pim_map: dict, france_map: dict, id_to_sku: dict, output_path: str = "batch_report.html") -> str:
+    """Run batch comparison and generate HTML report."""
+    results = batch_compare(pim_map, france_map, id_to_sku)
+    return generate_html_report(pim_map, france_map, id_to_sku, output_path)

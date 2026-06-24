@@ -1,8 +1,7 @@
-﻿# reporting/html_reporter.py
+# reporting/html_reporter.py
 
 from __future__ import annotations
 import datetime
-from comparison.orchestrator import batch_compare
 
 def _has_issues(report: dict) -> bool:
     if not report["found_in_france"]:
@@ -163,16 +162,16 @@ _JS = r"""
             if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
             document.querySelectorAll('thead th').forEach(t => {
                 t.classList.remove('sorted');
-                t.querySelector('.sort-icon').textContent = '\u21c5';
+                t.querySelector('.sort-icon').textContent = '⇅';
             });
             th.classList.add('sorted');
-            th.querySelector('.sort-icon').textContent = sortDir === 1 ? '\u2191' : '\u2193';
+            th.querySelector('.sort-icon').textContent = sortDir === 1 ? '↑' : '↓';
             applySort();
         });
     });
 
     function statusBadge(r) {
-        if (!r.has_issues) return '<span class="badge badge-ok">\u2705 OK</span>';
+        if (!r.has_issues) return '<span class="badge badge-ok">✅ OK</span>';
         return r.issue_cats.map(c => {
             const cls = c === 'Missing in France' ? 'badge-err'
                       : c.includes('Mismatch')    ? 'badge-warn'
@@ -185,8 +184,8 @@ _JS = r"""
         let html = '';
 
         const foundBadge = r.found_in_france
-            ? '<span class="badge badge-ok">\u2705 Found in France</span>'
-            : '<span class="badge badge-err">\u274c Missing in France</span>';
+            ? '<span class="badge badge-ok">✅ Found in France</span>'
+            : '<span class="badge badge-err">❌ Missing in France</span>';
         html += `<div class="detail-section"><h4>Availability</h4>${foundBadge}</div>`;
 
         if (r.type_comparison) {
@@ -196,8 +195,8 @@ _JS = r"""
                 &nbsp;&rarr;&nbsp;
                 <span class="badge badge-ftype">France: ${tc.france_type}</span>&nbsp;`;
             html += tc.types_match
-                ? '<span class="badge badge-ok">\u2705 Match</span>'
-                : '<span class="badge badge-err">\u274c Mismatch</span>';
+                ? '<span class="badge badge-ok">✅ Match</span>'
+                : '<span class="badge badge-err">❌ Mismatch</span>';
             html += '</div>';
         }
 
@@ -206,29 +205,29 @@ _JS = r"""
             html += `<div class="detail-section"><h4>Bundle Slots</h4>
                 <p>PIM slots: <b>${bc.pim_slot_count}</b> &nbsp;|&nbsp; France slots: <b>${bc.france_slot_count}</b>
                 &nbsp;${bc.slot_count_match
-                    ? '<span class="badge badge-ok">\u2705 Match</span>'
-                    : '<span class="badge badge-err">\u274c Mismatch</span>'}</p>`;
+                    ? '<span class="badge badge-ok">✅ Match</span>'
+                    : '<span class="badge badge-err">❌ Mismatch</span>'}</p>`;
             if (bc.slots_only_in_pim.length)
-                html += `<p style="margin-top:6px">\u274c Missing in France:
+                html += `<p style="margin-top:6px">❌ Missing in France:
                     <span class="sku-list">${bc.slots_only_in_pim.map(s=>`<span class="sku-chip missing">${s}</span>`).join('')}</span></p>`;
             if (bc.slots_only_in_france.length)
-                html += `<p style="margin-top:6px">\u2139\ufe0f Extra in France:
+                html += `<p style="margin-top:6px">ℹ️ Extra in France:
                     <span class="sku-list">${bc.slots_only_in_france.map(s=>`<span class="sku-chip extra">${s}</span>`).join('')}</span></p>`;
             for (const [slot, sd] of Object.entries(bc.per_slot)) {
                 html += `<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:#fff">
                     <b style="font-size:12px">[${slot.toUpperCase()}]</b>
                     &nbsp; PIM: <b>${sd.pim_sku_count}</b> &nbsp;|&nbsp; France: <b>${sd.france_sku_count}</b>
                     &nbsp;${sd.count_match
-                        ? '<span class="badge badge-ok">\u2705 Match</span>'
-                        : '<span class="badge badge-err">\u274c Mismatch</span>'}`;
+                        ? '<span class="badge badge-ok">✅ Match</span>'
+                        : '<span class="badge badge-err">❌ Mismatch</span>'}`;
                 if (sd.skus_only_in_pim.length)
-                    html += `<div style="margin-top:6px">\u274c Missing in France:
+                    html += `<div style="margin-top:6px">❌ Missing in France:
                         <div class="sku-list" style="margin-top:4px">${sd.skus_only_in_pim.map(s=>`<span class="sku-chip missing">${s}</span>`).join('')}</div></div>`;
                 if (sd.skus_only_in_france.length)
-                    html += `<div style="margin-top:6px">\u2139\ufe0f Extra in France:
+                    html += `<div style="margin-top:6px">ℹ️ Extra in France:
                         <div class="sku-list" style="margin-top:4px">${sd.skus_only_in_france.map(s=>`<span class="sku-chip extra">${s}</span>`).join('')}</div></div>`;
                 if (sd.count_match && !sd.skus_only_in_pim.length && !sd.skus_only_in_france.length)
-                    html += `<div style="margin-top:6px"><span class="badge badge-ok">\u2705 All children match</span></div>`;
+                    html += `<div style="margin-top:6px"><span class="badge badge-ok">✅ All children match</span></div>`;
                 html += '</div>';
             }
             html += '</div>';
@@ -239,24 +238,24 @@ _JS = r"""
             html += `<div class="detail-section"><h4>Configurable Children</h4>
                 <p>PIM: <b>${cc.pim_child_count}</b> &nbsp;|&nbsp; France: <b>${cc.france_child_count}</b>
                 &nbsp;${cc.count_match
-                    ? '<span class="badge badge-ok">\u2705 Match</span>'
-                    : '<span class="badge badge-err">\u274c Mismatch</span>'}</p>`;
+                    ? '<span class="badge badge-ok">✅ Match</span>'
+                    : '<span class="badge badge-err">❌ Mismatch</span>'}</p>`;
             if (cc.skus_only_in_pim.length)
-                html += `<div style="margin-top:6px">\u274c Missing in France:
+                html += `<div style="margin-top:6px">❌ Missing in France:
                     <div class="sku-list" style="margin-top:4px">${cc.skus_only_in_pim.map(s=>`<span class="sku-chip missing">${s}</span>`).join('')}</div></div>`;
             if (cc.skus_only_in_france.length)
-                html += `<div style="margin-top:6px">\u2139\ufe0f Extra in France:
+                html += `<div style="margin-top:6px">ℹ️ Extra in France:
                     <div class="sku-list" style="margin-top:4px">${cc.skus_only_in_france.map(s=>`<span class="sku-chip extra">${s}</span>`).join('')}</div></div>`;
             if (cc.unresolved_france_ids && cc.unresolved_france_ids.length)
-                html += `<p style="margin-top:6px">\u26a0\ufe0f Unresolved France IDs: ${cc.unresolved_france_ids.join(', ')}</p>`;
+                html += `<p style="margin-top:6px">⚠️ Unresolved France IDs: ${cc.unresolved_france_ids.join(', ')}</p>`;
             if (cc.count_match && !cc.skus_only_in_pim.length && !cc.skus_only_in_france.length)
-                html += `<div style="margin-top:6px"><span class="badge badge-ok">\u2705 All children match</span></div>`;
+                html += `<div style="margin-top:6px"><span class="badge badge-ok">✅ All children match</span></div>`;
             html += '</div>';
         }
 
         if (!r.type_comparison && !r.bundle_comparison && !r.configurable_comparison) {
             html += `<div class="detail-section"><h4>Summary</h4>
-                <span class="badge badge-ok">\u2705 Found in France \u2014 no structural comparison available for this type</span>
+                <span class="badge badge-ok">✅ Found in France — no structural comparison available for this type</span>
             </div>`;
         }
 
@@ -273,7 +272,7 @@ _JS = r"""
             <tr>
                 <td><code style="font-size:12px">${r.sku}</code></td>
                 <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                    title="${(r.name||'').replace(/"/g,'&quot;')}">${r.name || '&#8212;'}</td>
+                    title="${(r.name||'').replace(/"/g,'"')}">${r.name || '&#8212;'}</td>
                 <td><span class="badge badge-ptype">${r.pim_type}</span></td>
                 <td><span class="badge badge-ftype">${r.france_type}</span></td>
                 <td>${statusBadge(r)}</td>
@@ -291,7 +290,7 @@ _JS = r"""
     window.toggleDetail = function(detId, btn) {
         const el   = document.getElementById(detId);
         const open = el.classList.toggle('open');
-        btn.textContent = open ? '\u25bc Details' : '\u25ba Details';
+        btn.textContent = open ? '▼ Details' : '► Details';
     };
 
     function renderPagination() {
@@ -363,8 +362,9 @@ def generate_html_report(
     output_path: str = "batch_report.html",
 ) -> str:
     import json as _json
+    from comparison.orchestrator import batch_compare
 
-    print("⏳ Running batch comparison ...")
+    print("Running batch comparison ...")
     reports = batch_compare(pim_map, france_map, id_to_sku)
 
     total        = len(reports)
@@ -446,4 +446,3 @@ window.__REPORT_DATA__ = {rows_json};
 
     print(f"HTML report saved -> {output_path}")
     return output_path
-
