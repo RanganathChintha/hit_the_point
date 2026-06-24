@@ -12,7 +12,7 @@ def build_market_index(pim_map: dict) -> dict:
         { brand_code (str) -> { description, skus: set } }
 
     Each PIM product carries a list of customerLabels:
-        [ { "code": "DL", "description": "Widex France" }, ... ]
+        [ { "code": "DL", "description": "Widex Storefront" }, ... ]
 
     A product is counted once per market it belongs to.
     """

@@ -2,7 +2,7 @@
 
 def _has_issues(report: dict) -> bool:
     """Return True if the report contains any mismatch or missing data."""
-    if not report["found_in_france"]:
+    if not report["found_in_storefront"]:
         return True
     tc = report.get("type_comparison")
     if tc and not tc["types_match"]:
@@ -11,9 +11,9 @@ def _has_issues(report: dict) -> bool:
     if bc and (
         not bc["slot_count_match"]
         or bc["slots_only_in_pim"]
-        or bc["slots_only_in_france"]
+        or bc["slots_only_in_storefront"]
         or any(
-            not sd["count_match"] or sd["skus_only_in_pim"] or sd["skus_only_in_france"]
+            not sd["count_match"] or sd["skus_only_in_pim"] or sd["skus_only_in_storefront"]
             for sd in bc["per_slot"].values()
         )
     ):
@@ -22,7 +22,7 @@ def _has_issues(report: dict) -> bool:
     if cc and (
         not cc["count_match"]
         or cc["skus_only_in_pim"]
-        or cc["skus_only_in_france"]
+        or cc["skus_only_in_storefront"]
     ):
         return True
     return False
@@ -36,10 +36,10 @@ def print_report(report: dict) -> None:
     print(f"  SKU : {report['sku']}")
     print(SEP)
     print(f"  PIM    : {'Found' if report['found_in_pim']    else 'NOT FOUND'}")
-    print(f"  France : {'Found' if report['found_in_france'] else 'NOT FOUND'}")
+    print(f"  Storefront : {'Found' if report['found_in_storefront'] else 'NOT FOUND'}")
 
-    if not report["found_in_france"]:
-        print(f"\n  {ERR} SKU exists in PIM but is MISSING in France.")
+    if not report["found_in_storefront"]:
+        print(f"\n  {ERR} SKU exists in PIM but is MISSING in Storefront.")
         print(SEP)
         return
 
@@ -47,7 +47,7 @@ def print_report(report: dict) -> None:
     if tc:
         print(f"\n{'TYPE COMPARISON':─<70}")
         print(f"  PIM type    : {tc['pim_type']}")
-        print(f"  France type : {tc['france_type']}")
+        print(f"  Storefront type : {tc['storefront_type']}")
         if tc["types_match"]:
             print(f"  {OK}  Types compatible.")
         else:
@@ -57,60 +57,60 @@ def print_report(report: dict) -> None:
     if bc:
         print(f"\n{'BUNDLE SLOT COMPARISON':─<70}")
         print(f"  PIM    slots : {bc['pim_slot_count']}")
-        print(f"  France slots : {bc['france_slot_count']}")
+        print(f"  Storefront slots : {bc['storefront_slot_count']}")
         print(f"  {OK if bc['slot_count_match'] else ERR}  Slot count {'matches' if bc['slot_count_match'] else 'MISMATCH'}.")
         if bc["slots_only_in_pim"]:
-            print(f"\n  {ERR} Slots in PIM but MISSING in France : {bc['slots_only_in_pim']}")
-        if bc["slots_only_in_france"]:
-            print(f"  {INFO} Slots in France but NOT in PIM     : {bc['slots_only_in_france']}")
+            print(f"\n  {ERR} Slots in PIM but MISSING in Storefront : {bc['slots_only_in_pim']}")
+        if bc["slots_only_in_storefront"]:
+            print(f"  {INFO} Slots in Storefront but NOT in PIM     : {bc['slots_only_in_storefront']}")
         for slot_name, sd in bc["per_slot"].items():
-            if sd["count_match"] and not sd["skus_only_in_pim"] and not sd["skus_only_in_france"]:
+            if sd["count_match"] and not sd["skus_only_in_pim"] and not sd["skus_only_in_storefront"]:
                 continue
             print(f"\n  [{slot_name.upper()}]")
             print(f"    PIM    SKU count : {sd['pim_sku_count']}")
-            print(f"    France SKU count : {sd['france_sku_count']}")
+            print(f"    Storefront SKU count : {sd['storefront_sku_count']}")
             if not sd["count_match"]:
                 print(f"    {ERR} Child count MISMATCH.")
             if sd["skus_only_in_pim"]:
-                print(f"    {ERR} In PIM but MISSING in France : {sd['skus_only_in_pim']}")
-            if sd["skus_only_in_france"]:
-                print(f"    {INFO} In France but NOT in PIM    : {sd['skus_only_in_france']}")
+                print(f"    {ERR} In PIM but MISSING in Storefront : {sd['skus_only_in_pim']}")
+            if sd["skus_only_in_storefront"]:
+                print(f"    {INFO} In Storefront but NOT in PIM    : {sd['skus_only_in_storefront']}")
 
     cc = report.get("configurable_comparison")
     if cc:
         print(f"\n{'CONFIGURABLE CHILD COMPARISON':─<70}")
         print(f"  PIM    child count : {cc['pim_child_count']}")
-        print(f"  France child count : {cc['france_child_count']}")
+        print(f"  Storefront child count : {cc['storefront_child_count']}")
         print(f"  {OK if cc['count_match'] else ERR}  Child count {'matches' if cc['count_match'] else 'MISMATCH'}.")
-        if cc["unresolved_france_ids"]:
-            print(f"  {WARN} Unresolved France IDs        : {cc['unresolved_france_ids']}")
+        if cc["unresolved_storefront_ids"]:
+            print(f"  {WARN} Unresolved Storefront IDs        : {cc['unresolved_storefront_ids']}")
         if cc["skus_only_in_pim"]:
-            print(f"  {ERR} In PIM but MISSING in France : {cc['skus_only_in_pim']}")
-        if cc["skus_only_in_france"]:
-            print(f"  {INFO} In France but NOT in PIM    : {cc['skus_only_in_france']}")
+            print(f"  {ERR} In PIM but MISSING in Storefront : {cc['skus_only_in_pim']}")
+        if cc["skus_only_in_storefront"]:
+            print(f"  {INFO} In Storefront but NOT in PIM    : {cc['skus_only_in_storefront']}")
 
     print(SEP)
 
 def summarize_batch(reports: list) -> None:
     """Print a summary table and all detailed issues from a batch run."""
     total      = len(reports)
-    missing    = [r for r in reports if not r["found_in_france"]]
+    missing    = [r for r in reports if not r["found_in_storefront"]]
     type_mm    = [r for r in reports if r.get("type_comparison") and not r["type_comparison"]["types_match"]]
     bundle_iss = [r for r in reports if _has_issues(r) and r.get("bundle_comparison")]
     config_iss = [r for r in reports if _has_issues(r) and r.get("configurable_comparison")]
     perfect    = [r for r in reports if not _has_issues(r)]
 
-    print(f"\n{'BATCH SUMMARY  (PIM → France)':═<70}")
+    print(f"\n{'BATCH SUMMARY  (PIM → Storefront)':═<70}")
     print(f"  Total PIM SKUs compared     : {total}")
     print(f"  {OK}  Perfect matches           : {len(perfect)}")
-    print(f"  {ERR} Missing in France         : {len(missing)}")
+    print(f"  {ERR} Missing in Storefront         : {len(missing)}")
     print(f"  {ERR} Type mismatches           : {len(type_mm)}")
     print(f"  {ERR} Bundle slot issues        : {len(bundle_iss)}")
     print(f"  {ERR} Configurable child issues : {len(config_iss)}")
     print("═" * 70)
 
     if missing:
-        print(f"\n  {ERR} PIM SKUs MISSING in France ({len(missing)}):")
+        print(f"\n  {ERR} PIM SKUs MISSING in Storefront ({len(missing)}):")
         for r in missing:
             pt = r["type_comparison"]["pim_type"] if r["type_comparison"] else "?"
             print(f"    • {r['sku']:<40}  [{pt}]")
@@ -119,7 +119,7 @@ def summarize_batch(reports: list) -> None:
         print(f"\n  {ERR} TYPE MISMATCHES ({len(type_mm)}):")
         for r in type_mm:
             tc = r["type_comparison"]
-            print(f"    • {r['sku']:<40}  PIM={tc['pim_type']}  France={tc['france_type']}")
+            print(f"    • {r['sku']:<40}  PIM={tc['pim_type']}  Storefront={tc['storefront_type']}")
 
     if bundle_iss:
         print(f"\n  {ERR} BUNDLE ISSUES ({len(bundle_iss)}):")
@@ -137,7 +137,7 @@ def summarize_batch(reports: list) -> None:
         for r in issues:
             print_report(r)
     else:
-        print(f"\n  {OK}  No issues found — PIM and France are fully in sync!")
+        print(f"\n  {OK}  No issues found — PIM and Storefront are fully in sync!")
 
 # ─────────────────────────────────────────────
 #  MARKET REPORT PRINTERS

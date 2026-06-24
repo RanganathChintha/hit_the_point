@@ -10,9 +10,9 @@ def _get_custom_attr(custom_attributes: list, code: str):
             return attr.get("value")
     return None
 
-def parse_france_products(data) -> dict:
+def parse_storefront_products(data) -> dict:
     """
-    Parse raw France (Magento) JSON into a flat SKU-keyed dict.
+    Parse raw Storefront (Magento) JSON into a flat SKU-keyed dict.
     Handles simple, configurable, and bundle types.
     """
     result = {}
@@ -78,8 +78,8 @@ def parse_france_products(data) -> dict:
 
     return result
 
-def build_france_id_to_sku(data) -> dict:
-    """Build a { internal_id (int) -> sku (str) } map from France products."""
+def build_storefront_id_to_sku(data) -> dict:
+    """Build a { internal_id (int) -> sku (str) } map from Storefront products."""
     id_to_sku = {}
     items = data if isinstance(data, list) else data.get("items", [data])
     for prod in items:
@@ -87,9 +87,9 @@ def build_france_id_to_sku(data) -> dict:
             id_to_sku[int(prod["id"])] = prod["sku"]
     return id_to_sku
 
-def build_france_category_map(france_cat_tree: list) -> dict:
+def build_storefront_category_map(storefront_cat_tree: list) -> dict:
     """
-    Recursively flatten the nested France category tree into:
+    Recursively flatten the nested Storefront category tree into:
         { id -> { name, parent_id, level } }
     """
     cat_map = {}
@@ -103,11 +103,11 @@ def build_france_category_map(france_cat_tree: list) -> dict:
             }
             recurse(node.get("children_data", []))
 
-    recurse(france_cat_tree)
+    recurse(storefront_cat_tree)
     return cat_map
 
-def extract_france_categories(data) -> list:
-    """Extract the root list from france_categories.json."""
+def extract_storefront_categories(data) -> list:
+    """Extract the root list from storefront_categories.json."""
     if isinstance(data, list):
         return data
     for key in ("children_data", "categories", "data", "items"):

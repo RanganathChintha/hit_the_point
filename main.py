@@ -1,10 +1,10 @@
 ﻿import os
-from config                      import FRANCE_PRODUCTS_FILE, FRANCE_CAT_FILE, PIM_PRODUCTS_FILE, PIM_CAT_FILE
+from config                      import STOREFRONT_PRODUCTS_FILE, STOREFRONT_CAT_FILE, PIM_PRODUCTS_FILE, PIM_CAT_FILE
 from loaders.json_loader         import load_json
 from loaders.pim_loader          import parse_pim_products
-from loaders.france_loader       import parse_france_products, build_france_id_to_sku, extract_france_categories
+from loaders.storefront_loader       import parse_storefront_products, build_storefront_id_to_sku, extract_storefront_categories
 from hierarchy.pim_hierarchy     import get_pim_hierarchy
-from hierarchy.france_hierarchy  import get_france_hierarchy
+from hierarchy.storefront_hierarchy  import get_storefront_hierarchy
 from comparison.orchestrator     import compare_product, batch_compare
 from reporting.printer           import print_report, summarize_batch, print_all_markets, print_market_detail
 from reporting.html_reporter     import generate_html_report
@@ -12,29 +12,29 @@ from analysis.market_counter     import build_market_index, list_all_markets, ge
 
 def _load_all() -> dict:
     print("Loading files ...")
-    france_raw     = load_json(FRANCE_PRODUCTS_FILE)
-    france_cat_raw = load_json(FRANCE_CAT_FILE)
+    storefront_raw     = load_json(STOREFRONT_PRODUCTS_FILE)
+    storefront_cat_raw = load_json(STOREFRONT_CAT_FILE)
     pim_raw        = load_json(PIM_PRODUCTS_FILE)
     pim_cat_raw    = load_json(PIM_CAT_FILE)
 
     print("Parsing ...")
-    france_map      = parse_france_products(france_raw)
-    id_to_sku       = build_france_id_to_sku(france_raw)
-    france_cat_tree = extract_france_categories(france_cat_raw)
+    storefront_map      = parse_storefront_products(storefront_raw)
+    id_to_sku       = build_storefront_id_to_sku(storefront_raw)
+    storefront_cat_tree = extract_storefront_categories(storefront_cat_raw)
     pim_map         = parse_pim_products(pim_raw)
     pim_cat_data    = pim_cat_raw
 
     print(
         f"\nReady - {len(pim_map):,} PIM SKUs | "
-        f"{len(france_map):,} France SKUs | "
+        f"{len(storefront_map):,} Storefront SKUs | "
         f"{len(id_to_sku):,} ID->SKU mappings\n"
     )
 
     return {
         "pim_map":         pim_map,
         "pim_cat_data":    pim_cat_data,
-        "france_map":      france_map,
-        "france_cat_tree": france_cat_tree,
+        "storefront_map":      storefront_map,
+        "storefront_cat_tree": storefront_cat_tree,
         "id_to_sku":       id_to_sku,
     }
 
@@ -50,9 +50,9 @@ def _run_hierarchy(ctx: dict) -> None:
         for line in get_pim_hierarchy(sku, ctx["pim_map"], ctx["pim_cat_data"]):
             print(line)
         print(f"\n{'=' * 60}")
-        print(f"  FRANCE HIERARCHY  -  SKU: {sku}")
+        print(f"  STOREFRONT HIERARCHY  -  SKU: {sku}")
         print("=" * 60)
-        for line in get_france_hierarchy(sku, ctx["france_map"], ctx["france_cat_tree"]):
+        for line in get_storefront_hierarchy(sku, ctx["storefront_map"], ctx["storefront_cat_tree"]):
             print(line)
         print()
 
@@ -62,12 +62,12 @@ def _run_single_compare(ctx: dict) -> None:
         sku = input("SKU > ").strip()
         if not sku or sku.lower() in ("exit", "quit", "q"):
             break
-        report = compare_product(sku, ctx["pim_map"], ctx["france_map"], ctx["id_to_sku"])
+        report = compare_product(sku, ctx["pim_map"], ctx["storefront_map"], ctx["id_to_sku"])
         print_report(report)
 
 def _run_batch(ctx: dict) -> None:
     print("\nRunning batch comparison ...")
-    reports = batch_compare(ctx["pim_map"], ctx["france_map"], ctx["id_to_sku"])
+    reports = batch_compare(ctx["pim_map"], ctx["storefront_map"], ctx["id_to_sku"])
     summarize_batch(reports)
 
 def _run_market_counter(ctx: dict) -> None:
@@ -113,7 +113,7 @@ def _run_batch_html(ctx: dict) -> None:
     path    = input(f"\n  Output file path [{default}]: ").strip() or default
     out     = generate_html_report(
         ctx["pim_map"],
-        ctx["france_map"],
+        ctx["storefront_map"],
         ctx["id_to_sku"],
         output_path=path,
     )
@@ -129,9 +129,9 @@ def main():
 
     while True:
         print("\nModes:")
-        print("  1) Hierarchy viewer   - PIM + France tree for a SKU")
-        print("  2) Single compare     - PIM vs France for a SKU")
-        print("  3) Batch compare      - all PIM SKUs vs France (console)")
+        print("  1) Hierarchy viewer   - PIM + Storefront tree for a SKU")
+        print("  2) Single compare     - PIM vs Storefront for a SKU")
+        print("  3) Batch compare      - all PIM SKUs vs Storefront (console)")
         print("  4) Market counter     - products per brand/market code")
         print("  5) Batch HTML report  - export full report to HTML file")
         print("  q) Quit")
