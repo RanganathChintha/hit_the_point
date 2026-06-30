@@ -1,11 +1,11 @@
-# hit_the_point — PIM ↔ Storefront Reconciliation
+# hit_the_point — PIM ↔ Magento Reconciliation
 
 Compares product data between the **PIM** export (source of truth) and a
-**Storefront** (Magento) export — type compatibility, bundle slots/sets,
+**Magento** (Magento) export — type compatibility, bundle slots/sets,
 configurable children — plus a market (brand/customer-label) counter and a
 category hierarchy viewer.
 
-> **Terminology:** the system compared against PIM is called the **Storefront**.
+> **Terminology:** the system compared against PIM is called the **Magento**.
 > The word **market** refers to the PIM `customerLabel` codes (e.g. `AC`,
 > `AX`, `DL`, `GA`) — a product can belong to several markets, and the
 > comparison can be filtered by market.
@@ -14,9 +14,9 @@ The original CLI (`main.py`) still works. This repo also ships a **FastAPI
 backend** and a **React (Vite) frontend** over the same logic.
 
 ```
-loaders/      parse the raw PIM + Storefront JSON into SKU-keyed maps
+loaders/      parse the raw PIM + Magento JSON into SKU-keyed maps
 comparison/   type / bundle / configurable comparison + orchestrator
-hierarchy/    PIM + Storefront category → bundle → variant trees
+hierarchy/    PIM + Magento category → bundle → variant trees
 analysis/     market (customerLabel) counter
 reporting/    console printer + static HTML report
 server.py     FastAPI app exposing all of the above as a REST API
@@ -25,9 +25,9 @@ frontend/     React + Vite single-page app that consumes the API
 
 > **Data files** keep their original names (`data/france_products.json`,
 > `data/france_categories.json`, `data/pim_prod.json`, `data/pim_cat.json`) —
-> only the code/UI uses the generic "Storefront" term. The paths are set in
-> `config.py` (`STOREFRONT_PRODUCTS_FILE`, `STOREFRONT_CAT_FILE`), so when you
-> move to a single multi-market storefront file, just point those at it.
+> only the code/UI uses the generic "Magento" term. The paths are set in
+> `config.py` (`MAGENTO_PRODUCTS_FILE`, `MAGENTO_CAT_FILE`), so when you
+> move to a single multi-market magento file, just point those at it.
 
 ## Prerequisites
 
@@ -52,7 +52,7 @@ comparison in memory. Interactive API docs at <http://127.0.0.1:8000/docs>.
 | GET | `/api/summary` | Dashboard totals + distinct issue categories |
 | GET | `/api/reports` | Paginated table rows. Query: `search`, `category`, **`market`**, `sort`, `direction`, `page`, `page_size` |
 | GET | `/api/reports/{sku}` | Full comparison detail for one SKU |
-| GET | `/api/hierarchy/{sku}` | PIM + Storefront hierarchy tree lines |
+| GET | `/api/hierarchy/{sku}` | PIM + Magento hierarchy tree lines |
 | GET | `/api/markets` | All markets, or `?q=` to search code/description |
 | GET | `/api/markets/{code}` | Product breakdown for one brand code |
 

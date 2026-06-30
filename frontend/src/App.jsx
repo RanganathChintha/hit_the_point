@@ -9,7 +9,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>PIM ↔ Storefront Reconciliation</h1>
+        <h1>PIM ↔ Magento Reconciliation</h1>
         <nav>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/comparison">Comparison</NavLink>

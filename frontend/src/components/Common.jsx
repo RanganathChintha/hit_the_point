@@ -19,7 +19,7 @@ export function Empty({ label = 'No results.' }) {
 }
 
 const ISSUE_BADGE = {
-  'Missing in Storefront': 'badge-err',
+  'Missing in Magento': 'badge-err',
   'Type Mismatch': 'badge-warn',
   'Bundle Slot Issue': 'badge-info',
   'Bundle SKU Issue': 'badge-info',

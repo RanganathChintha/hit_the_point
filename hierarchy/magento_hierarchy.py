@@ -1,7 +1,7 @@
-﻿from loaders.storefront_loader import build_storefront_category_map
+﻿from loaders.magento_loader import build_magento_category_map
 
-def _resolve_storefront_category_path(cat_id: int, cat_map: dict) -> list:
-    """Walk up the Storefront parent chain -> root-to-leaf path."""
+def _resolve_magento_category_path(cat_id: int, cat_map: dict) -> list:
+    """Walk up the Magento parent chain -> root-to-leaf path."""
     path    = []
     current = cat_id
     visited = set()
@@ -15,9 +15,9 @@ def _resolve_storefront_category_path(cat_id: int, cat_map: dict) -> list:
         current = entry.get("parent_id")
     return path
 
-def _find_storefront_parent_bundle(sku: str, storefront_products: dict):
-    """Find the Storefront bundle product that contains the given SKU."""
-    for product in storefront_products.values():
+def _find_magento_parent_bundle(sku: str, magento_products: dict):
+    """Find the Magento bundle product that contains the given SKU."""
+    for product in magento_products.values():
         if product.get("type_id") != "bundle":
             continue
         for slot in product.get("bundle_slots", {}).values():
@@ -25,17 +25,17 @@ def _find_storefront_parent_bundle(sku: str, storefront_products: dict):
                 return product
     return None
 
-def get_storefront_hierarchy(sku: str, storefront_products: dict, storefront_cat_tree: list) -> list:
+def get_magento_hierarchy(sku: str, magento_products: dict, magento_cat_tree: list) -> list:
     """
-    Return tree lines showing the Storefront category -> bundle -> simple hierarchy
+    Return tree lines showing the Magento category -> bundle -> simple hierarchy
     for a given SKU.
     """
-    product = storefront_products.get(sku)
+    product = magento_products.get(sku)
     if not product:
-        return [f"  ⚠️  SKU '{sku}' not found in Storefront products."]
+        return [f"  ⚠️  SKU '{sku}' not found in Magento products."]
 
-    cat_map       = build_storefront_category_map(storefront_cat_tree)
-    parent_bundle = _find_storefront_parent_bundle(sku, storefront_products)
+    cat_map       = build_magento_category_map(magento_cat_tree)
+    parent_bundle = _find_magento_parent_bundle(sku, magento_products)
     lines         = []
 
     source         = parent_bundle if parent_bundle else product
@@ -57,7 +57,7 @@ def get_storefront_hierarchy(sku: str, storefront_products: dict, storefront_cat
 
     for link in category_links:
         raw_id = link.get("category_id")
-        path   = ["[No Category]"] if raw_id is None else _resolve_storefront_category_path(int(raw_id), cat_map)
+        path   = ["[No Category]"] if raw_id is None else _resolve_magento_category_path(int(raw_id), cat_map)
 
         for i, node in enumerate(path):
             lines.append(f"{'    ' * i}└── {node}")

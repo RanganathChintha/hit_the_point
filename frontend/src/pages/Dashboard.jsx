@@ -18,7 +18,8 @@ export default function Dashboard() {
   const cards = [
     { cls: 'ok', num: s.perfect, lbl: 'Perfect Matches', onClick: () => goCat('ok') },
     { cls: 'err', num: s.total_issues, lbl: 'Total Issues', onClick: () => navigate('/comparison') },
-    { cls: 'err', num: s.missing_in_storefront, lbl: 'Missing in Storefront', onClick: () => goCat('Missing in Storefront') },
+    { cls: 'err', num: s.missing_in_magento, lbl: 'Missing in Magento', onClick: () => goCat('Missing in Magento') },
+    { cls: 'pim-err', num: s.missing_in_pim, lbl: 'Missing in PIM', onClick: () => navigate('/comparison?missing=pim') },
     { cls: 'warn', num: s.type_mismatches, lbl: 'Type Mismatches', onClick: () => goCat('Type Mismatch') },
     { cls: 'info', num: s.bundle_issues, lbl: 'Bundle Issues', onClick: () => goCat('Bundle Slot Issue') },
     { cls: 'info', num: s.configurable_issues, lbl: 'Configurable Issues', onClick: () => goCat('Configurable Child Issue') },
@@ -28,8 +29,35 @@ export default function Dashboard() {
     <>
       <div className="page-title">Dashboard</div>
       <div className="page-sub">
-        {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.storefront_sku_count)} Storefront SKUs
+        {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
         &nbsp;·&nbsp; {fmt(s.market_count)} markets
+      </div>
+
+      {/* Product Count Comparison Panel */}
+      <div className="panel comparison-panel">
+        <h3>Product Count Comparison</h3>
+        <div className="comparison-stats">
+          <div className="stat-row">
+            <div className="stat-label">PIM Products</div>
+            <div className="stat-value">{fmt(s.pim_sku_count)}</div>
+          </div>
+          <div className="stat-row">
+            <div className="stat-label">Magento Products</div>
+            <div className="stat-value">{fmt(s.magento_sku_count)}</div>
+          </div>
+          <div className="stat-row missing">
+            <div className="stat-label">Missing in Magento</div>
+            <div className="stat-value err">{fmt(s.missing_in_magento)}</div>
+          </div>
+          <div className="stat-row missing">
+            <div className="stat-label">Missing in PIM</div>
+            <div className="stat-value err">{fmt(s.missing_in_pim)}</div>
+          </div>
+          <div className="stat-row total">
+            <div className="stat-label">Match Rate</div>
+            <div className="stat-value ok">{((s.perfect / s.total) * 100 || 0).toFixed(1)}%</div>
+          </div>
+        </div>
       </div>
 
       <div className="summary-grid">

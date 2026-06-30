@@ -10,9 +10,9 @@ def _get_custom_attr(custom_attributes: list, code: str):
             return attr.get("value")
     return None
 
-def parse_storefront_products(data) -> dict:
+def parse_magento_products(data) -> dict:
     """
-    Parse raw Storefront (Magento) JSON into a flat SKU-keyed dict.
+    Parse raw Magento (Magento) JSON into a flat SKU-keyed dict.
     Handles simple, configurable, and bundle types.
     """
     result = {}
@@ -78,8 +78,8 @@ def parse_storefront_products(data) -> dict:
 
     return result
 
-def build_storefront_id_to_sku(data) -> dict:
-    """Build a { internal_id (int) -> sku (str) } map from Storefront products."""
+def build_magento_id_to_sku(data) -> dict:
+    """Build a { internal_id (int) -> sku (str) } map from Magento products."""
     id_to_sku = {}
     items = data if isinstance(data, list) else data.get("items", [data])
     for prod in items:
@@ -87,9 +87,9 @@ def build_storefront_id_to_sku(data) -> dict:
             id_to_sku[int(prod["id"])] = prod["sku"]
     return id_to_sku
 
-def build_storefront_category_map(storefront_cat_tree: list) -> dict:
+def build_magento_category_map(magento_cat_tree: list) -> dict:
     """
-    Recursively flatten the nested Storefront category tree into:
+    Recursively flatten the nested Magento category tree into:
         { id -> { name, parent_id, level } }
     """
     cat_map = {}
@@ -103,11 +103,11 @@ def build_storefront_category_map(storefront_cat_tree: list) -> dict:
             }
             recurse(node.get("children_data", []))
 
-    recurse(storefront_cat_tree)
+    recurse(magento_cat_tree)
     return cat_map
 
-def extract_storefront_categories(data) -> list:
-    """Extract the root list from storefront_categories.json."""
+def extract_magento_categories(data) -> list:
+    """Extract the root list from magento_categories.json."""
     if isinstance(data, list):
         return data
     for key in ("children_data", "categories", "data", "items"):

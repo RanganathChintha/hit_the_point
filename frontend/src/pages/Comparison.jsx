@@ -10,7 +10,7 @@ const SORTABLE = [
   { key: 'sku', label: 'SKU' },
   { key: 'name', label: 'Name' },
   { key: 'pim_type', label: 'PIM Type' },
-  { key: 'storefront_type', label: 'Storefront Type' },
+  { key: 'magento_type', label: 'Magento Type' },
   { key: 'has_issues', label: 'Status' },
 ]
 
@@ -73,10 +73,14 @@ export default function Comparison() {
   const setCat = (c) => { setCategory(c); syncParam('category', c) }
   const setMkt = (m) => { setMarket(m); syncParam('market', m) }
 
+  // Build category filter options including special categories
+  const specialCategories = ['missingInMagento', 'missingInPIM']
+  const allCategories = ['all', 'ok', ...specialCategories, ...issueCategories]
+
   return (
     <>
       <div className="page-title">Comparison</div>
-      <div className="page-sub">PIM-driven comparison of every SKU against Storefront.</div>
+      <div className="page-sub">PIM-driven comparison of every SKU against Magento.</div>
 
       <div className="toolbar">
         <input
@@ -141,7 +145,7 @@ export default function Comparison() {
                       <td><code>{r.sku}</code></td>
                       <td className="name-cell" title={r.name}>{r.name || '—'}</td>
                       <td><span className="badge badge-ptype">{r.pim_type}</span></td>
-                      <td><span className="badge badge-ftype">{r.storefront_type}</span></td>
+                      <td><span className="badge badge-ftype">{r.magento_type}</span></td>
                       <td><StatusBadges hasIssues={r.has_issues} issueCats={r.issue_cats} /></td>
                       <td>
                         <span className="badge-group">
