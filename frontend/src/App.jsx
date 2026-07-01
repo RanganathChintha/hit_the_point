@@ -2,8 +2,8 @@ import { NavLink, Route, Routes, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard.jsx'
 import Comparison from './pages/Comparison.jsx'
 import SkuDetail from './pages/SkuDetail.jsx'
-import Markets from './pages/Markets.jsx'
-import MarketDetail from './pages/MarketDetail.jsx'
+import CustomerGroupComparison from './pages/CustomerGroupComparison.jsx'
+import CustomerGroupComparisonDetail from './pages/CustomerGroupComparisonDetail.jsx'
 
 export default function App() {
   return (
@@ -13,7 +13,7 @@ export default function App() {
         <nav>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/comparison">Comparison</NavLink>
-          <NavLink to="/markets">Markets</NavLink>
+          <NavLink to="/customer-group-comparison">Customer Groups</NavLink>
         </nav>
       </header>
       <main>
@@ -21,8 +21,8 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/comparison" element={<Comparison />} />
           <Route path="/sku/:sku" element={<SkuDetail />} />
-          <Route path="/markets" element={<Markets />} />
-          <Route path="/markets/:code" element={<MarketDetail />} />
+          <Route path="/customer-group-comparison" element={<CustomerGroupComparison />} />
+          <Route path="/customer-group-comparison/:sku" element={<CustomerGroupComparisonDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

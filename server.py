@@ -2,7 +2,7 @@
 FastAPI backend for the PIM ↔ Magento reconciliation tool.
 
 Loads all source data once at startup, runs the batch comparison, caches the
-results, and exposes them (plus markets and hierarchy) as a REST API consumed
+results, and exposes them (plus hierarchy) as a REST API consumed
 by the React frontend.
 
 Run:  uvicorn server:app --reload --port 8000
@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import (
     MAGENTO_PRODUCTS_FILE,
+    MAGENTO_CUSTOMER_GROUP_FILE,
     MAGENTO_CAT_FILE,
     PIM_PRODUCTS_FILE,
     PIM_CAT_FILE,
@@ -28,15 +29,14 @@ from loaders.magento_loader import (
     build_magento_id_to_sku,
     extract_magento_categories,
 )
+from loaders.magento_customer_loader import parse_magento_customer_groups
+from comparison.customer_group_comparison import (
+    compare_customer_groups,
+    batch_compare_customer_groups,
+)
 from hierarchy.pim_hierarchy import get_pim_hierarchy
 from hierarchy.magento_hierarchy import get_magento_hierarchy
 from comparison.orchestrator import compare_product, batch_compare
-from analysis.market_counter import (
-    build_market_index,
-    list_all_markets,
-    get_market_products,
-    search_market_by_description,
-)
 from reporting.html_reporter import (
     _build_row,
     _has_issues,
@@ -53,8 +53,9 @@ STATE: dict = {
     "pim_cat_data": {},
     "magento_map": {},
     "magento_cat_tree": [],
+    "magento_customer_groups": {},
+    "customer_group_comparison": {},
     "id_to_sku": {},
-    "market_index": {},
     "rows": [],          # cached comparison rows (one per PIM SKU)
     "rows_by_sku": {},   # sku -> row
     "summary": {},
@@ -68,19 +69,19 @@ def _load_everything() -> None:
     magento_cat_raw = load_json(MAGENTO_CAT_FILE)
     pim_raw = load_json(PIM_PRODUCTS_FILE)
     pim_cat_raw = load_json(PIM_CAT_FILE)
-
     print("Parsing ...")
     magento_map = parse_magento_products(magento_raw)
     id_to_sku = build_magento_id_to_sku(magento_raw)
     magento_cat_tree = extract_magento_categories(magento_cat_raw)
     pim_map = parse_pim_products(pim_raw)
+    magento_customer_groups = parse_magento_customer_groups(MAGENTO_CUSTOMER_GROUP_FILE)
 
     STATE["pim_map"] = pim_map
     STATE["pim_cat_data"] = pim_cat_raw
     STATE["magento_map"] = magento_map
     STATE["magento_cat_tree"] = magento_cat_tree
+    STATE["magento_customer_groups"] = magento_customer_groups
     STATE["id_to_sku"] = id_to_sku
-    STATE["market_index"] = build_market_index(pim_map)
 
     print(
         f"Ready - {len(pim_map):,} PIM SKUs | "
@@ -105,7 +106,6 @@ def _load_everything() -> None:
             "magento_type": magento_entry.get("type_id", "?"),
             "has_issues": True,
             "issue_cats": ["Missing in PIM"],
-            "markets": [],
             "found_in_magento": True,
             "type_comparison": None,
             "bundle_comparison": None,
@@ -136,6 +136,24 @@ def _load_everything() -> None:
     # Count products in Magento but not in PIM
     missing_in_pim = len(missing_in_pim_skus)
 
+    # Compute customer group comparison data
+    print("Computing customer group comparison data...")
+    cg_data = batch_compare_customer_groups(pim_map, magento_customer_groups, magento_map)
+    STATE["customer_group_comparison"] = {}
+    for data in cg_data:
+        STATE["customer_group_comparison"][data["sku"]] = data
+
+    # Calculate customer group comparison summary statistics.
+    # With the bidirectional definition, fully_matched == True only when
+    # pim_only AND magento_only are both empty. Anything else is a problem.
+    skus_with_pim_data = [sku for sku in pim_map.keys() if pim_map[sku].get("customer_labels")]
+    total_skus_with_cg = len(skus_with_pim_data)
+    matched_skus = sum(1 for data in cg_data if data["fully_matched"])
+    not_matched_skus = sum(1 for data in cg_data if not data["fully_matched"])
+
+    total_cg_mappings = sum(data["total_pim_groups"] for data in cg_data)
+    matched_mappings = sum(data["match_count"] for data in cg_data)
+
     STATE["summary"] = {
         "total": total,
         "perfect": perfect,
@@ -147,8 +165,16 @@ def _load_everything() -> None:
         "configurable_issues": config_iss,
         "pim_sku_count": len(pim_map),
         "magento_sku_count": len(magento_map),
-        "market_count": len(STATE["market_index"]),
         "issue_categories": all_cats,
+        # Customer group comparison specific stats
+        "customer_group_comparison": {
+            "total_skus_with_groups": total_skus_with_cg,
+            "matched_skus": matched_skus,
+            "not_matched_skus": not_matched_skus,
+            "total_pim_groups": total_cg_mappings,
+            "matched_groups": matched_mappings,
+            "match_rate": (matched_mappings / total_cg_mappings * 100) if total_cg_mappings > 0 else 0
+        }
     }
     STATE["ready"] = True
     print("Backend ready.")
@@ -198,8 +224,7 @@ def summary():
 @app.get("/api/reports")
 def reports(
     search: str = Query("", description="Match against SKU or name"),
-    category: str = Query("all", description="'all', 'ok', or an issue category"),
-    market: str = Query("all", description="'all' or a market/brand code (e.g. AC, DL)"),
+    category: str = Query("all", description="'all', 'ok', an issue category, or a product type (simple/bundle/configurable)"),
     sort: str = Query("sku"),
     direction: str = Query("asc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
@@ -209,17 +234,30 @@ def reports(
     _require_ready()
     rows = STATE["rows"]
     q = search.strip().lower()
-    market_code = market.strip().upper()
+
+    # Product-type categories that select by type rather than issue
+    PRODUCT_TYPE_CATEGORIES = {"simple", "bundle", "configurable"}
 
     def matches(r: dict) -> bool:
         if q and q not in r["sku"].lower() and q not in (r.get("name") or "").lower():
-            return False
-        if market_code != "ALL" and market_code not in r.get("markets", []):
             return False
         if category == "all":
             return True
         if category == "ok":
             return not r["has_issues"]
+        if category in PRODUCT_TYPE_CATEGORIES:
+            # Match based on the resolved product type
+            pim_t = r.get("pim_type", "")
+            mag_t = r.get("magento_type", "")
+            # PIM types: PRODUCT, BUNDLE, PRODUCT_VARIANT, NOT IN PIM
+            # Magento types: simple, bundle, configurable
+            if category == "bundle":
+                return pim_t == "BUNDLE" or mag_t == "bundle"
+            if category == "configurable":
+                return pim_t == "PRODUCT" and mag_t == "configurable"
+            if category == "simple":
+                return pim_t in ("PRODUCT_VARIANT", "NOT IN PIM") or (pim_t == "PRODUCT" and mag_t == "simple")
+            return False
         if category == "Missing in Magento":
             return "Missing in Magento" in r["issue_cats"]
         if category == "Missing in PIM":
@@ -248,7 +286,6 @@ def reports(
             "magento_type": r["magento_type"],
             "has_issues": r["has_issues"],
             "issue_cats": r["issue_cats"],
-            "markets": r.get("markets", []),
         }
         for r in page_rows
     ]
@@ -295,29 +332,99 @@ def hierarchy(sku: str):
     }
 
 
-@app.get("/api/markets")
-def markets(q: str = Query("", description="Optional search over code/description")):
-    """List all markets, or search by code/description when q is provided."""
-    _require_ready()
-    if q.strip():
-        results = search_market_by_description(q, STATE["market_index"])
-        return {"items": sorted(results, key=lambda m: m["code"]), "count": len(results)}
-    items = list_all_markets(STATE["market_index"])
-    return {"items": items, "count": len(items)}
+# ──────────────────────────────────────────────────────────────────────────
+#  Customer Group Comparison Endpoints
+# ──────────────────────────────────────────────────────────────────────────
 
 
-@app.get("/api/markets/{code}")
-def market_detail(code: str):
-    """Full breakdown for one market/brand code."""
+@app.get("/api/customer-group-comparison/summary")
+def customer_group_summary():
+    """Get summary statistics for customer group comparison."""
     _require_ready()
-    detail = get_market_products(code, STATE["market_index"], STATE["pim_map"])
-    if detail is None:
-        suggestions = search_market_by_description(code, STATE["market_index"])
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "message": f"Brand code '{code.upper()}' not found.",
-                "suggestions": sorted(suggestions, key=lambda m: m["code"]),
-            },
-        )
-    return detail
+    return STATE["summary"].get("customer_group_comparison", {})
+
+
+@app.get("/api/customer-group-comparison")
+def customer_group_reports(
+    search: str = Query("", description="Match against SKU or name"),
+    match_status: str = Query("all", description="'all', 'matched', or 'not_matched'"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+):
+    """Get customer group comparison data with filtering.
+
+    match_status values:
+      - 'all':         every SKU
+      - 'matched':     pim_only and magento_only are both empty
+      - 'not_matched': any difference on either side (a problem)
+    """
+    _require_ready()
+    cg_data = STATE["customer_group_comparison"]
+
+    def matches_match_status(data: dict) -> bool:
+        if match_status == "all":
+            return True
+        if match_status == "matched":
+            return data["fully_matched"]
+        if match_status == "not_matched":
+            return not data["fully_matched"]
+        return True
+
+    filtered = [
+        data for sku, data in cg_data.items()
+        if (not search or search.lower() in sku.lower() or
+            any(search.lower() in pg["code"].lower() for pg in data.get("pim_groups", [])))
+        and matches_match_status(data)
+    ]
+
+    total = len(filtered)
+    start = (page - 1) * page_size
+    page_data = filtered[start:start + page_size]
+
+    # Format for frontend consumption
+    items = []
+    for data in page_data:
+        items.append({
+            "sku": data["sku"],
+            "pim_groups": data.get("pim_groups", []),
+            "magento_groups": data.get("magento_groups", []),
+            "shared": data.get("shared", []),
+            "pim_only": data.get("pim_only", []),
+            "magento_only": data.get("magento_only", []),
+            "match_count": data["match_count"],
+            "total_pim_groups": data["total_pim_groups"],
+            "fully_matched": data["fully_matched"],
+            "match_percentage": (data["match_count"] / data["total_pim_groups"] * 100) if data["total_pim_groups"] > 0 else 0
+        })
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+        "items": items,
+    }
+
+
+@app.get("/api/customer-group-comparison/{sku}")
+def customer_group_detail(sku: str):
+    """Get detailed customer group comparison for a specific SKU."""
+    _require_ready()
+    data = STATE["customer_group_comparison"].get(sku)
+    if data is None:
+        # PIM is the source of truth; only PIM SKUs are included in comparison
+        if sku not in STATE["pim_map"]:
+            raise HTTPException(status_code=404, detail=f"SKU '{sku}' not found in PIM.")
+        # Return empty data structure
+        data = {
+            "sku": sku,
+            "pim_groups": [],
+            "magento_groups": [],
+            "shared": [],
+            "pim_only": [],
+            "magento_only": [],
+            "match_count": 0,
+            "total_pim_groups": 0,
+            "fully_matched": True,
+        }
+    return data

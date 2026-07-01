@@ -15,6 +15,25 @@ export default function Dashboard() {
   const s = data
   const goCat = (cat) => navigate(`/comparison?category=${encodeURIComponent(cat)}`)
 
+  // Update the subtitle to show market matching stats if available
+  let subtitleContent = (
+    <>
+      {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
+      &nbsp;·&nbsp; {fmt(s.market_count)} markets
+    </>
+  )
+
+  if (s.customer_group_comparison) {
+    subtitleContent = (
+      <>
+        {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
+        &nbsp;·&nbsp; {fmt(s.market_count)} markets
+        &nbsp;·&nbsp; {fmt(s.customer_group_comparison?.total_skus_with_groups ?? 0)} SKUs with groups
+      </>
+    )
+  }
+
+  // Define the cards array for the summary grid
   const cards = [
     { cls: 'ok', num: s.perfect, lbl: 'Perfect Matches', onClick: () => goCat('ok') },
     { cls: 'err', num: s.total_issues, lbl: 'Total Issues', onClick: () => navigate('/comparison') },
@@ -23,14 +42,26 @@ export default function Dashboard() {
     { cls: 'warn', num: s.type_mismatches, lbl: 'Type Mismatches', onClick: () => goCat('Type Mismatch') },
     { cls: 'info', num: s.bundle_issues, lbl: 'Bundle Issues', onClick: () => goCat('Bundle Slot Issue') },
     { cls: 'info', num: s.configurable_issues, lbl: 'Configurable Issues', onClick: () => goCat('Configurable Child Issue') },
+    // Customer Group Comparison Cards
+    {
+      cls: 'info',
+      num: s.customer_group_comparison?.total_skus_with_groups ?? 0,
+      lbl: 'SKUs with Customer Groups',
+      onClick: () => navigate('/customer-group-comparison'),
+    },
+    {
+      cls: s.customer_group_comparison?.match_rate ?? 0 >= 95 ? 'ok' : s.customer_group_comparison?.match_rate ?? 0 >= 80 ? 'warn' : 'err',
+      num: s.customer_group_comparison?.match_rate ?? 0,
+      lbl: 'Customer Group Match Rate',
+      onClick: () => navigate('/customer-group-comparison?match_status=unmatched'),
+    },
   ]
 
   return (
     <>
       <div className="page-title">Dashboard</div>
       <div className="page-sub">
-        {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
-        &nbsp;·&nbsp; {fmt(s.market_count)} markets
+        {subtitleContent}
       </div>
 
       {/* Product Count Comparison Panel */}

@@ -30,6 +30,8 @@ export const api = {
   reports: (params) => get('/api/reports', params),
   reportDetail: (sku) => get(`/api/reports/${encodeURIComponent(sku)}`),
   hierarchy: (sku) => get(`/api/hierarchy/${encodeURIComponent(sku)}`),
-  markets: (q) => get('/api/markets', q ? { q } : undefined),
-  marketDetail: (code) => get(`/api/markets/${encodeURIComponent(code)}`),
+  // Customer Group Comparison APIs
+  customerGroupComparison: (params) => get('/api/customer-group-comparison', params),
+  customerGroupComparisonSummary: () => get('/api/customer-group-comparison/summary'),
+  customerGroupComparisonDetail: (sku) => get(`/api/customer-group-comparison/${encodeURIComponent(sku)}`),
 }

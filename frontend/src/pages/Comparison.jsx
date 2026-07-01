@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync, useDebounced } from '../hooks.js'
 import { Loading, ErrorBox, Empty, StatusBadges } from '../components/Common.jsx'
+import SkuCopyButton from '../components/SkuCopyButton.jsx'
 
 const PAGE_SIZE = 50
 
@@ -20,42 +21,35 @@ export default function Comparison() {
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState(searchParams.get('category') || 'all')
-  const [market, setMarket] = useState(searchParams.get('market') || 'all')
   const [sort, setSort] = useState('sku')
   const [direction, setDirection] = useState('asc')
   const [page, setPage] = useState(1)
 
   const debouncedSearch = useDebounced(search, 300)
 
-  // Keep the category/market query-params in sync when arriving from another page.
+  // Keep the category query-param in sync when arriving from another page.
   useEffect(() => {
     const c = searchParams.get('category')
     if (c && c !== category) setCategory(c)
-    const m = searchParams.get('market')
-    if (m && m !== market) setMarket(m)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   // Reset to page 1 whenever a filter/sort changes.
-  useEffect(() => { setPage(1) }, [debouncedSearch, category, market, sort, direction])
+  useEffect(() => { setPage(1) }, [debouncedSearch, category, sort, direction])
 
   const summaryState = useAsync(() => api.summary(), [])
   const issueCategories = summaryState.data?.issue_categories || []
-
-  const marketsState = useAsync(() => api.markets(), [])
-  const marketOptions = marketsState.data?.items || []
 
   const { loading, data, error } = useAsync(
     () => api.reports({
       search: debouncedSearch,
       category,
-      market,
       sort,
       direction,
       page,
       page_size: PAGE_SIZE,
     }),
-    [debouncedSearch, category, market, sort, direction, page],
+    [debouncedSearch, category, sort, direction, page],
   )
 
   const onSort = (key) => {
@@ -71,11 +65,6 @@ export default function Comparison() {
   }
 
   const setCat = (c) => { setCategory(c); syncParam('category', c) }
-  const setMkt = (m) => { setMarket(m); syncParam('market', m) }
-
-  // Build category filter options including special categories
-  const specialCategories = ['missingInMagento', 'missingInPIM']
-  const allCategories = ['all', 'ok', ...specialCategories, ...issueCategories]
 
   return (
     <>
@@ -89,20 +78,16 @@ export default function Comparison() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select value={market} onChange={(e) => setMkt(e.target.value)} title="Filter by market">
-          <option value="all">All markets</option>
-          {marketOptions.map((m) => (
-            <option key={m.code} value={m.code}>
-              {m.code} — {m.description} ({m.count.toLocaleString()})
-            </option>
-          ))}
-        </select>
-        <select value={category} onChange={(e) => setCat(e.target.value)} title="Filter by status">
+        <select value={category} onChange={(e) => setCat(e.target.value)} title="Filter by status or product type">
           <option value="all">All SKUs</option>
           <option value="ok">OK only</option>
           {issueCategories.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
+          <option disabled>── Product Type ──</option>
+          <option value="simple">Simple</option>
+          <option value="bundle">Bundle</option>
+          <option value="configurable">Configurable</option>
         </select>
         {data && <span className="muted" style={{ fontSize: 13 }}>{data.total.toLocaleString()} match</span>}
       </div>
@@ -132,7 +117,6 @@ export default function Comparison() {
                         </th>
                       )
                     })}
-                    <th>Markets</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,18 +126,14 @@ export default function Comparison() {
                       className="clickable"
                       onClick={() => navigate(`/sku/${encodeURIComponent(r.sku)}`)}
                     >
-                      <td><code>{r.sku}</code></td>
+                      <td>
+                        <code>{r.sku}</code>
+                        <SkuCopyButton sku={r.sku} />
+                      </td>
                       <td className="name-cell" title={r.name}>{r.name || '—'}</td>
                       <td><span className="badge badge-ptype">{r.pim_type}</span></td>
                       <td><span className="badge badge-ftype">{r.magento_type}</span></td>
                       <td><StatusBadges hasIssues={r.has_issues} issueCats={r.issue_cats} /></td>
-                      <td>
-                        <span className="badge-group">
-                          {(r.markets || []).map((m) => (
-                            <span key={m} className="badge badge-info">{m}</span>
-                          ))}
-                        </span>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../hooks.js'
 import { Loading, ErrorBox, StatusBadges, SkuChips } from '../components/Common.jsx'
+import SkuCopyButton from '../components/SkuCopyButton.jsx'
 
 export default function SkuDetail() {
   const { sku } = useParams()
@@ -19,6 +20,7 @@ export default function SkuDetail() {
         <>
           <div className="page-title">
             <code>{detail.data.sku}</code>
+            <SkuCopyButton sku={detail.data.sku} />
           </div>
           <div className="page-sub">{detail.data.name || '—'}</div>
 

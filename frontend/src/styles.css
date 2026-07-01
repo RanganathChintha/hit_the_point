@@ -135,6 +135,16 @@ tbody tr.clickable { cursor: pointer; }
 .badge-ftype { background: #e0f2fe; color: #0c4a6e; }
 .badge-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 
+/* ── SKU Copy Button ───────────────────────────────── */
+.sku-copy-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer;
+  font-size: 12px; padding: 2px 4px; border-radius: 4px;
+  margin-left: 6px; vertical-align: middle; opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.sku-copy-btn:hover { opacity: 1; }
+
 /* ── Pagination ─────────────────────────────────────── */
 .pagination { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
 .pagination button {
