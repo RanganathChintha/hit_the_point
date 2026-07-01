@@ -4,9 +4,9 @@ echo   Hit The Point - Start Dev Environment
 echo ============================================
 echo.
 
-:: Start FastAPI backend in a new window (using venv python -m uvicorn)
+:: Start FastAPI backend in a new window (run from backend\, using root venv python)
 echo [1/2] Starting FastAPI backend on http://127.0.0.1:8000 ...
-start "FastAPI Backend" cmd /k "cd /d %~dp0 && .venv\Scripts\python.exe -m uvicorn server:app --reload --port 8000"
+start "FastAPI Backend" cmd /k "cd /d %~dp0backend && ..\.venv\Scripts\python.exe -m uvicorn server:app --reload --port 8000"
 
 :: Give the backend a moment to start
 timeout /t 3 /nobreak >nul

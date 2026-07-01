@@ -175,7 +175,13 @@ def _load_everything() -> None:
     # Calculate customer group comparison summary statistics.
     # With the bidirectional definition, fully_matched == True only when
     # pim_only AND magento_only are both empty. Anything else is a problem.
-    skus_with_pim_data = [sku for sku in pim_map.keys() if pim_map[sku].get("customer_labels")]
+    # Keep the flow strictly PIM SKU -> Magento product -> customer group:
+    # only count PIM SKUs with labels that ALSO exist in the Magento catalog,
+    # so this denominator matches the cg_data population (matched + not_matched).
+    skus_with_pim_data = [
+        sku for sku in pim_map
+        if pim_map[sku].get("customer_labels") and sku in magento_map
+    ]
     total_skus_with_cg = len(skus_with_pim_data)
     matched_skus = sum(1 for data in cg_data if data["fully_matched"])
     not_matched_skus = sum(1 for data in cg_data if not data["fully_matched"])

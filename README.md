@@ -7,11 +7,11 @@ configurable children, and customer group assignments — plus a market
 
 > **Terminology:** the system compared against PIM is called **Magento**.
 > The word **market** refers to the PIM `customerLabel` codes (e.g. `AC`,
-> `AX`, `DL`, `GA`) — a product can belong to several markets, and the
-> comparison can be filtered by market.
+> `AX`, `DL`, `GA`) — a product can belong to several markets. The CLI
+> includes a market counter (products per brand/customer-label code).
 
-The original CLI (`main.py`) still works. This repo also ships a **FastAPI
-backend** and a **React (Vite) frontend** over the same logic.
+The original CLI (`backend/main.py`) still works. This repo also ships a
+**FastAPI backend** and a **React (Vite) frontend** over the same logic.
 
 ---
 
@@ -19,45 +19,50 @@ backend** and a **React (Vite) frontend** over the same logic.
 
 ```
 hit_the_point/
-├── config.py                          # File paths, type mappings, constants
-├── server.py                          # FastAPI app (REST API, in-memory state)
-├── main.py                            # Original CLI entry point
-├── requirements.txt                   # Python dependencies
 ├── start.bat                          # One-click launcher (backend + frontend)
+├── README.md
+├── .gitignore
 ├── .env                               # Magento API credentials (not in git)
 │
-├── data/                              # Source JSON data files
+├── data/                              # Source JSON data files (not in git)
 │   ├── france_products.json           # Magento products
 │   ├── france_categories.json         # Magento categories
 │   ├── pim_prod.json                  # PIM products
 │   ├── pim_cat.json                   # PIM categories
 │   └── magento_customer_group.json    # Magento customer groups
 │
-├── loaders/                           # JSON parsing modules
-│   ├── json_loader.py                 # Generic JSON file loader
-│   ├── pim_loader.py                  # Parses PIM product JSON
-│   ├── magento_loader.py             # Parses Magento product JSON
-│   ├── magento_customer_loader.py     # Parses Magento customer group JSON
-│   └── magento_product_fetcher.py     # Fetches products from Magento API
-│
-├── comparison/                        # Core comparison logic
-│   ├── orchestrator.py                # Main comparison orchestrator
-│   ├── type_compare.py               # Product type compatibility check
-│   ├── bundle_compare.py             # Bundle slots comparison
-│   ├── configurable_compare.py        # Configurable children comparison
-│   ├── customer_group_comparison.py   # Customer group bidirectional compare
-│   └── market_matching.py            # Market matching logic
-│
-├── hierarchy/                         # Category / bundle tree builders
-│   ├── pim_hierarchy.py
-│   └── magento_hierarchy.py
-│
-├── analysis/                          # Market (brand / customer-label) counter
-│   └── market_counter.py
-│
-├── reporting/                         # Output generation
-│   ├── html_reporter.py              # Static HTML report builder
-│   └── printer.py                     # Console output formatting
+├── backend/                           # Python backend (FastAPI + CLI)
+│   ├── config.py                      # File paths, type mappings, constants
+│   ├── server.py                      # FastAPI app (REST API, in-memory state)
+│   ├── main.py                        # Original CLI entry point
+│   ├── requirements.txt               # Python dependencies
+│   │
+│   ├── loaders/                       # JSON parsing modules
+│   │   ├── json_loader.py             # Generic JSON file loader
+│   │   ├── pim_loader.py              # Parses PIM product JSON
+│   │   ├── magento_loader.py          # Parses Magento product JSON
+│   │   ├── magento_customer_loader.py # Parses Magento customer group JSON
+│   │   ├── magento_category_fetcher.py# Fetches categories from Magento API
+│   │   └── magento_product_fetcher.py # Fetches products from Magento API
+│   │
+│   ├── comparison/                    # Core comparison logic
+│   │   ├── orchestrator.py            # Main comparison orchestrator
+│   │   ├── type_compare.py            # Product type compatibility check
+│   │   ├── bundle_compare.py          # Bundle slots comparison
+│   │   ├── configurable_compare.py    # Configurable children comparison
+│   │   ├── category_compare.py        # Category link comparison
+│   │   └── customer_group_comparison.py # Customer group bidirectional compare
+│   │
+│   ├── hierarchy/                     # Category / bundle tree builders
+│   │   ├── pim_hierarchy.py
+│   │   └── magento_hierarchy.py
+│   │
+│   ├── analysis/                      # Market (brand / customer-label) counter
+│   │   └── market_counter.py
+│   │
+│   └── reporting/                     # Output generation
+│       ├── html_reporter.py           # Static HTML report builder
+│       └── printer.py                 # Console output formatting
 │
 └── frontend/                          # React SPA
     ├── package.json
@@ -67,7 +72,7 @@ hit_the_point/
         ├── main.jsx                   # React entry point
         ├── App.jsx                    # Router and layout
         ├── api.js                     # API client
-        ├── hooks.js                    # useAsync, useDebounced hooks
+        ├── hooks.js                   # useAsync, useDebounced hooks
         ├── styles.css                 # Application styles
         ├── components/
         │   ├── Common.jsx             # Loading, ErrorBox, Empty, StatusBadges
@@ -77,18 +82,14 @@ hit_the_point/
             ├── Comparison.jsx
             ├── SkuDetail.jsx
             ├── CustomerGroupComparison.jsx
-            ├── CustomerGroupComparisonDetail.jsx
-            ├── Markets.jsx
-            ├── MarketDetail.jsx
-            ├── MarketMatching.jsx
-            └── MarketMatchingDetail.jsx
+            └── CustomerGroupComparisonDetail.jsx
 ```
 
 > **Data files** keep their original names (`france_products.json`,
 > `france_categories.json`, etc.) — only the code/UI uses the generic "Magento"
-> term. The paths are set in `config.py` (`MAGENTO_PRODUCTS_FILE`,
-> `MAGENTO_CAT_FILE`), so when you move to a single multi-market Magento file,
-> just point those at it.
+> term. The paths are set in `backend/config.py` (`MAGENTO_PRODUCTS_FILE`,
+> `MAGENTO_CAT_FILE`) and resolve relative to the repo root, so `data/` and
+> `.env` stay at the top level while the code lives under `backend/`.
 
 ---
 
@@ -115,12 +116,15 @@ Starts both the backend and frontend servers automatically.
 #### 1. Backend (FastAPI)
 
 ```bash
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m uvicorn server:app --reload --port 8000
+.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn server:app --reload --port 8000
 ```
 
 Loads + parses all source files **once at startup**, caches the full batch
 comparison in memory. Interactive API docs at <http://127.0.0.1:8000/docs>.
+Paths in `config.py` resolve to the repo-root `data/` directory, so the backend
+must be run from the `backend/` folder (as `start.bat` does).
 
 #### 2. Frontend (React + Vite)
 
@@ -146,7 +150,8 @@ the API.
 #### 4. Original CLI (still available)
 
 ```bash
-.venv\Scripts\python.exe main.py
+cd backend
+..\.venv\Scripts\python.exe main.py
 ```
 
 Interactive menu with 5 modes: hierarchy viewer, single compare, batch compare,
@@ -164,7 +169,9 @@ market counter, and static HTML report export (`batch_report.html`).
 | `MAGENTO_USERNAME` | Magento API username |
 | `MAGENTO_PASSWORD` | Magento API password |
 
-### Key Constants (`config.py`)
+### Key Constants (`backend/config.py`)
+
+Paths are resolved relative to the repo root (`data/` at the top level).
 
 | Constant | Default | Description |
 | -------- | ------- | ----------- |
@@ -173,7 +180,7 @@ market counter, and static HTML report export (`batch_report.html`).
 | `MAGENTO_CUSTOMER_GROUP_FILE` | `data/magento_customer_group.json` | Customer group JSON file |
 | `PIM_PRODUCTS_FILE` | `data/pim_prod.json` | PIM product JSON file |
 | `PIM_CAT_FILE` | `data/pim_cat.json` | PIM category JSON file |
-| `MAGENTO_WEBSITE_ID` | `1` | Magento website ID — declare this in config.py only |
+| `MAGENTO_WEBSITE_ID` | `12` | Magento website ID — declare this in config.py only |
 | `MAGENTO_API_PAGE_SIZE` | `100` | Products per API request page |
 | `MAGENTO_API_DELAY` | `0.5` | Seconds between API calls |
 | `MAGENTO_API_MAX_RETRIES` | `5` | Max retry attempts for API calls |
@@ -197,14 +204,10 @@ market counter, and static HTML report export (`batch_report.html`).
 | ------ | ---- | ----------- |
 | GET | `/api/health` | `{ ready: bool }` — true once data is loaded |
 | GET | `/api/summary` | Dashboard totals + distinct issue categories |
-| GET | `/api/reports` | Paginated table rows. Query: `search`, `category`, **`market`**, `sort`, `direction`, `page`, `page_size` |
+| POST | `/api/magento-reload` | Reload data files, or `?fetch=true` to pull fresh data from the Magento API |
+| GET | `/api/reports` | Paginated table rows. Query: `search`, `category`, `sort`, `direction`, `page`, `page_size` |
 | GET | `/api/reports/{sku}` | Full comparison detail for one SKU |
 | GET | `/api/hierarchy/{sku}` | PIM + Magento hierarchy tree lines |
-
-**Market filter:** each report row carries a `markets` array (the SKU's PIM
-customerLabel codes). Pass `?market=DL` to `/api/reports` to restrict the table
-to one market; `market=all` (default) shows everything. It composes with
-`search` and `category`.
 
 ### Customer Group Comparison
 
@@ -214,13 +217,6 @@ to one market; `market=all` (default) shows everything. It composes with
 | GET | `/api/customer-group-comparison/{sku}` | Customer group detail for one SKU |
 | GET | `/api/customer-group-comparison/summary` | Summary statistics for customer group match rate |
 
-### Markets
-
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| GET | `/api/markets` | All markets, or `?q=` to search code/description |
-| GET | `/api/markets/{code}` | Product breakdown for one brand code |
-
 ---
 
 ## Frontend Pages
@@ -228,14 +224,10 @@ to one market; `market=all` (default) shows everything. It composes with
 | Page | Route | Description |
 | ---- | ----- | ----------- |
 | **Dashboard** | `/` | Summary cards: perfect matches, total issues, missing in Magento, missing in PIM, type mismatches, bundle issues, configurable issues, and customer group match rate. Click any card to drill into the filtered comparison table. |
-| **Comparison** | `/comparison` | Searchable, sortable, paginated table of all PIM SKUs vs Magento, with a **market dropdown** + status filter. A Markets column shows each SKU's market codes. Click a row for full detail + hierarchy. |
-| **SKU Detail** | `/comparison/:sku` | Full per-SKU comparison: type match, bundle slots, configurable children, and side-by-side PIM vs Magento hierarchy trees. |
+| **Comparison** | `/comparison` | Searchable, sortable, paginated table of all PIM SKUs vs Magento, with a status/category filter. Click a row for full detail + hierarchy. |
+| **SKU Detail** | `/sku/:sku` | Full per-SKU comparison: type match, bundle slots, configurable children, and side-by-side PIM vs Magento hierarchy trees. |
 | **Customer Group Comparison** | `/customer-group-comparison` | Bidirectional comparison of PIM customer labels vs Magento customer groups. Shows shared, PIM-only, and Magento-only groups per SKU. |
 | **Customer Group Detail** | `/customer-group-comparison/:sku` | Per-SKU customer group breakdown with full detail. |
-| **Markets** | `/markets` | Products per brand/customer-label code. "View in comparison →" jumps to the comparison page pre-filtered by that market. |
-| **Market Detail** | `/markets/:code` | Product breakdown by type for a specific market. |
-| **Market Matching** | `/market-matching` | Market matching overview — shows how PIM customer labels map to Magento customer groups. |
-| **Market Matching Detail** | `/market-matching/:sku` | Per-SKU market matching detail view. |
 
 ---
 

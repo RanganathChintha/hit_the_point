@@ -3,6 +3,10 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Generated reports (exported by the CLI / backend)
+batch_report.html
+*_report.html
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

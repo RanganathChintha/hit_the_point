@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
 
+# Repo root (one level above this backend/ package) so data/ and .env resolve
+# correctly no matter which directory the server or CLI is launched from.
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
-def _load_dotenv(path: str = ".env") -> None:
+
+def _load_dotenv(path: str = str(ROOT_DIR / ".env")) -> None:
     """Minimal .env loader; no external dependency needed."""
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -25,9 +29,9 @@ _load_dotenv()
 
 MAGENTO_PRODUCTS_FILE        = os.getenv("MAGENTO_PRODUCTS_FILE", "")
 MAGENTO_CAT_FILE             = os.getenv("MAGENTO_CAT_FILE", "")
-MAGENTO_CUSTOMER_GROUP_FILE = "data/magento_customer_group.json"
-PIM_PRODUCTS_FILE            = "data/pim_prod.json"
-PIM_CAT_FILE                 = "data/pim_cat.json"
+MAGENTO_CUSTOMER_GROUP_FILE = str(ROOT_DIR / "data" / "magento_customer_group.json")
+PIM_PRODUCTS_FILE            = str(ROOT_DIR / "data" / "pim_prod.json")
+PIM_CAT_FILE                 = str(ROOT_DIR / "data" / "pim_cat.json")
 
 # Magento website ID is declared here in config.py and forwarded to fetchers.
 # Do not declare this in .env; change it only in this file.
@@ -64,7 +68,7 @@ MAGENTO_API_MAX_RETRIES = 5    # Retry attempts per page
 MAGENTO_API_RETRY_DELAY = 10   # Seconds before retry
 
 # Output directory for fetched data
-DATA_DIR = "data"
+DATA_DIR = str(ROOT_DIR / "data")
 
 
 def _find_latest_magento_output(suffix: str, default_path: str) -> str:
@@ -85,10 +89,10 @@ def _find_latest_magento_output(suffix: str, default_path: str) -> str:
 def get_magento_products_file() -> str:
     if MAGENTO_PRODUCTS_FILE:
         return MAGENTO_PRODUCTS_FILE
-    return _find_latest_magento_output("_products.json", "data/france_products.json")
+    return _find_latest_magento_output("_products.json", str(ROOT_DIR / "data" / "france_products.json"))
 
 
 def get_magento_cat_file() -> str:
     if MAGENTO_CAT_FILE:
         return MAGENTO_CAT_FILE
-    return _find_latest_magento_output("_categories.json", "data/france_categories.json")
+    return _find_latest_magento_output("_categories.json", str(ROOT_DIR / "data" / "france_categories.json"))
