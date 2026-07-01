@@ -438,7 +438,7 @@ def generate_html_report(
     # "Missing in Magento" and "Missing in PIM" are already in issue_cats from the rows
     # No need to add them again as special categories
     filter_options = "".join(f'<option value="{c}">{c}</option>' for c in sorted(all_cats))
-    generated_at = __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    generated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">

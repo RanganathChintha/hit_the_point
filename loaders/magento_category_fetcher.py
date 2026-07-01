@@ -9,12 +9,14 @@ The final JSON is saved to ``data/<store_code>_categories.json`` so
 `magento_loader.py` can pick it up directly.
 """
 
-import json
+import json as _json
 import os
+import socket
+import ssl
 import time
 from datetime import datetime
-
-import urllib3
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from config import (
     MAGENTO_API_MAX_RETRIES,
@@ -26,12 +28,9 @@ from config import (
     DATA_DIR,
 )
 
-try:
-    import requests  # type: ignore[import-untyped]
-except ImportError:  # pragma: no cover
-    requests = None  # type: ignore[assignment]
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # type: ignore[no-untyped-call]
+_SSL = ssl.create_default_context()
+_SSL.check_hostname = False
+_SSL.verify_mode = ssl.CERT_NONE
 
 
 # ---------------------------------------------------------------------------
@@ -39,18 +38,69 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # type: ign
 # ---------------------------------------------------------------------------
 
 
-def _req_json(method: str, url: str, **kwargs):  # type: ignore[no-untyped-def]
-    """Thin wrapper around ``requests.{method}`` that disses SSL."""
-    if requests is None:
-        raise RuntimeError("requests is not installed – pip install requests")
-    resp = getattr(requests, method)(
-        url,
-        verify=False,
-        timeout=kwargs.pop("timeout", 60),
-        **kwargs,
-    )
-    resp.raise_for_status()
-    return resp
+class _Response:
+    """Drop-in so callers keep ``resp.json()`` / ``resp.status_code``."""  # ponytail: minimal adapter
+
+    __slots__ = ("_resp", "status_code")
+
+    def __init__(self, http_resp):
+        self._resp = http_resp
+        self.status_code = http_resp.getcode()
+
+    def json(self):
+        return _json.load(self._resp)
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise HTTPError(self._resp.url, self.status_code, None, None, None)
+
+
+class _ErrorResponse:
+    """Mirrors _Response for 4xx/5xx so callers can check status_code before raising."""
+
+    __slots__ = ("_exc", "status_code")
+
+    def __init__(self, exc: HTTPError):
+        self._exc = exc
+        self.status_code = exc.code
+
+    def json(self):
+        if self._exc.fp is not None:
+            try:
+                return _json.load(self._exc.fp)
+            except Exception:
+                pass
+        raise self._exc
+
+    def raise_for_status(self):
+        raise self._exc
+
+
+def _req_json(method: str, url: str, **kwargs):
+    """HTTPS request with disabled SSL verification."""
+    timeout = kwargs.pop("timeout", 60)
+    headers = kwargs.pop("headers", {})
+    json_data = kwargs.pop("json", None)
+    params = kwargs.pop("params", None)
+
+    if params:
+        from urllib.parse import urlencode
+        url = f"{url}?{urlencode(params)}"
+
+    data = None
+    if json_data is not None:
+        data = _json.dumps(json_data).encode("utf-8")
+        headers.setdefault("Content-Type", "application/json")
+
+    req = Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        return _Response(urlopen(req, context=_SSL, timeout=timeout))
+    except HTTPError as exc:
+        return _ErrorResponse(exc)
+    except socket.timeout:
+        raise TimeoutError() from None
+    except URLError as exc:
+        raise ConnectionError(str(exc.reason)) from exc
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -71,6 +121,7 @@ def get_token() -> str:
         json={"username": MAGENTO_USERNAME, "password": MAGENTO_PASSWORD},
         timeout=30,
     )
+    resp.raise_for_status()
     token = resp.json().strip('"')
     print("✅ Token retrieved!\n")
     return token
@@ -86,12 +137,14 @@ def get_store_code_for_website(token: str, website_id: int) -> dict:
     non-admin store view matching *website_id*."""
     print(f"🔍 Looking up store view for website_id={website_id}…")
 
-    stores = _req_json(
+    resp = _req_json(
         "get",
         f"{MAGENTO_BASE_URL}/rest/V1/store/storeViews",
         headers=_auth_headers(token),
         timeout=30,
-    ).json()
+    )
+    resp.raise_for_status()
+    stores = resp.json()
 
     matched = [
         {
@@ -134,10 +187,10 @@ def fetch_category_tree_with_retry(token_ref: list, store_code: str) -> dict:
     for attempt in range(1, MAGENTO_API_MAX_RETRIES + 1):
         try:
             print(f"   📡 Calling: {url}")
-            resp = requests.get(  # type: ignore[union-attr]
+            resp = _req_json(
+                "get",
                 url,
                 headers=_auth_headers(token_ref[0]),
-                verify=False,
                 timeout=60,
             )
 
@@ -150,7 +203,7 @@ def fetch_category_tree_with_retry(token_ref: list, store_code: str) -> dict:
             resp.raise_for_status()
             return resp.json()  # ✅ full nested tree
 
-        except requests.exceptions.ConnectionError:  # type: ignore[union-attr]
+        except ConnectionError:
             print(f"\n   ⚠️  Connection error (attempt {attempt}/{MAGENTO_API_MAX_RETRIES})")
             if attempt < MAGENTO_API_MAX_RETRIES:
                 print(f"   ⏳ Waiting {MAGENTO_API_RETRY_DELAY}s then retrying…")
@@ -160,7 +213,7 @@ def fetch_category_tree_with_retry(token_ref: list, store_code: str) -> dict:
             else:
                 raise
 
-        except requests.exceptions.Timeout:  # type: ignore[union-attr]
+        except TimeoutError:
             print(f"\n   ⚠️  Timeout (attempt {attempt}/{MAGENTO_API_MAX_RETRIES})")
             if attempt < MAGENTO_API_MAX_RETRIES:
                 print(f"   ⏳ Waiting {MAGENTO_API_RETRY_DELAY}s then retrying…")

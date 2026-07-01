@@ -1,9 +1,23 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load .env from project root (clever: no hard path needed)
-_ = load_dotenv()
+
+def _load_dotenv(path: str = ".env") -> None:
+    """Minimal .env loader; no external dependency needed."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except FileNotFoundError:
+        pass
+
+
+_load_dotenv()
 
 # ─────────────────────────────────────────────
 #  FILE PATHS & CONSTANTS
