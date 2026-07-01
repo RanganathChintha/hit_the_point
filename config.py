@@ -1,12 +1,23 @@
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from project root (clever: no hard path needed)
+_ = load_dotenv()
+
 # ─────────────────────────────────────────────
 #  FILE PATHS & CONSTANTS
 # ─────────────────────────────────────────────
 
-MAGENTO_PRODUCTS_FILE        = "data/france_products.json"
-MAGENTO_CAT_FILE             = "data/france_categories.json"
+MAGENTO_PRODUCTS_FILE        = os.getenv("MAGENTO_PRODUCTS_FILE", "")
+MAGENTO_CAT_FILE             = os.getenv("MAGENTO_CAT_FILE", "")
 MAGENTO_CUSTOMER_GROUP_FILE = "data/magento_customer_group.json"
 PIM_PRODUCTS_FILE            = "data/pim_prod.json"
 PIM_CAT_FILE                 = "data/pim_cat.json"
+
+# Magento website ID is declared here in config.py and forwarded to fetchers.
+# Do not declare this in .env; change it only in this file.
+MAGENTO_WEBSITE_ID = 12
 
 # Maps PIM product type → accepted Magento type(s)
 PIM_TO_MAGENTO_TYPE = {
@@ -24,17 +35,13 @@ INFO = "ℹ️ "
 # ─────────────────────────────────────────────
 #  MAGENTO API FETCHER CONFIG
 # ─────────────────────────────────────────────
-import os
-from dotenv import load_dotenv
-
-# Load .env from project root (clever: no hard path needed)
-_ = load_dotenv()
 
 # Credentials — loaded from .env (safe for sensitive data)
 MAGENTO_BASE_URL   = os.getenv("MAGENTO_BASE_URL",   "")
 MAGENTO_USERNAME   = os.getenv("MAGENTO_USERNAME",   "")
 MAGENTO_PASSWORD   = os.getenv("MAGENTO_PASSWORD",   "")
-MAGENTO_WEBSITE_ID = int(os.getenv("MAGENTO_WEBSITE_ID", "0"))
+# Magento website ID is configured in config.py only.
+# MAGENTO_WEBSITE_ID from .env is ignored intentionally.
 
 # Tuning constants
 MAGENTO_API_PAGE_SIZE   = 100  # Safe page size
@@ -44,3 +51,30 @@ MAGENTO_API_RETRY_DELAY = 10   # Seconds before retry
 
 # Output directory for fetched data
 DATA_DIR = "data"
+
+
+def _find_latest_magento_output(suffix: str, default_path: str) -> str:
+    directory = Path(DATA_DIR)
+    if not directory.exists():
+        return default_path
+
+    candidates = sorted(
+        directory.glob(f"*{suffix}"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if candidates:
+        return str(candidates[0])
+    return default_path
+
+
+def get_magento_products_file() -> str:
+    if MAGENTO_PRODUCTS_FILE:
+        return MAGENTO_PRODUCTS_FILE
+    return _find_latest_magento_output("_products.json", "data/france_products.json")
+
+
+def get_magento_cat_file() -> str:
+    if MAGENTO_CAT_FILE:
+        return MAGENTO_CAT_FILE
+    return _find_latest_magento_output("_categories.json", "data/france_categories.json")

@@ -11,16 +11,20 @@ Run:  uvicorn server:app --reload --port 8000
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+import json
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import (
-    MAGENTO_PRODUCTS_FILE,
+    get_magento_products_file,
+    get_magento_cat_file,
     MAGENTO_CUSTOMER_GROUP_FILE,
-    MAGENTO_CAT_FILE,
     PIM_PRODUCTS_FILE,
     PIM_CAT_FILE,
+    DATA_DIR,
+    MAGENTO_WEBSITE_ID,
 )
 from loaders.json_loader import load_json
 from loaders.pim_loader import parse_pim_products
@@ -29,6 +33,12 @@ from loaders.magento_loader import (
     build_magento_id_to_sku,
     extract_magento_categories,
 )
+from loaders.magento_category_fetcher import (
+    get_token,
+    get_store_code_for_website,
+    fetch_category_tree_with_retry,
+)
+from loaders.magento_product_fetcher import get_all_products
 from loaders.magento_customer_loader import parse_magento_customer_groups
 from comparison.customer_group_comparison import (
     compare_customer_groups,
@@ -65,14 +75,30 @@ STATE: dict = {
 def _load_everything() -> None:
     """Load + parse all source files and pre-compute the batch comparison."""
     print("Loading source files ...")
-    magento_raw = load_json(MAGENTO_PRODUCTS_FILE)
-    magento_cat_raw = load_json(MAGENTO_CAT_FILE)
+    magento_products_file = get_magento_products_file()
+    magento_cat_file = get_magento_cat_file()
+    magento_raw = load_json(magento_products_file)
+    magento_cat_raw = load_json(magento_cat_file)
     pim_raw = load_json(PIM_PRODUCTS_FILE)
     pim_cat_raw = load_json(PIM_CAT_FILE)
     print("Parsing ...")
     magento_map = parse_magento_products(magento_raw)
     id_to_sku = build_magento_id_to_sku(magento_raw)
     magento_cat_tree = extract_magento_categories(magento_cat_raw)
+    # Merge any other category files present in the data directory so
+    # the category map covers all available category JSON dumps.
+    try:
+        from pathlib import Path
+        data_dir = Path(DATA_DIR)
+        for p in sorted(data_dir.glob("*_categories.json")):
+            if str(p) == magento_cat_file:
+                continue
+            other_raw = load_json(str(p))
+            other_tree = extract_magento_categories(other_raw)
+            if other_tree:
+                magento_cat_tree.extend(other_tree)
+    except Exception:
+        pass
     pim_map = parse_pim_products(pim_raw)
     magento_customer_groups = parse_magento_customer_groups(MAGENTO_CUSTOMER_GROUP_FILE)
 
@@ -82,6 +108,8 @@ def _load_everything() -> None:
     STATE["magento_cat_tree"] = magento_cat_tree
     STATE["magento_customer_groups"] = magento_customer_groups
     STATE["id_to_sku"] = id_to_sku
+    STATE["magento_products_file"] = magento_products_file
+    STATE["magento_cat_file"] = magento_cat_file
 
     print(
         f"Ready - {len(pim_map):,} PIM SKUs | "
@@ -90,7 +118,7 @@ def _load_everything() -> None:
     )
 
     print("Running batch comparison ...")
-    reports = batch_compare(pim_map, magento_map, id_to_sku)
+    reports = batch_compare(pim_map, magento_map, id_to_sku, magento_cat_tree)
     rows = [_build_row(r, pim_map, magento_map) for r in reports]
 
     # Add rows for SKUs in Magento but not in PIM (Missing in PIM)
@@ -110,6 +138,7 @@ def _load_everything() -> None:
             "type_comparison": None,
             "bundle_comparison": None,
             "configurable_comparison": None,
+            "category_comparison": None,
         }
         rows.append(row)
 
@@ -206,6 +235,26 @@ def _require_ready() -> None:
         raise HTTPException(status_code=503, detail="Data still loading, retry shortly.")
 
 
+def _save_json(path: Path, data: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, ensure_ascii=False)
+
+
+def _fetch_magento_data() -> tuple[str, str]:
+    token = get_token()
+    store = get_store_code_for_website(token, MAGENTO_WEBSITE_ID)
+    products = get_all_products([token], store)
+    categories = fetch_category_tree_with_retry([token], store["code"])
+
+    products_file = Path(DATA_DIR) / f"{store['code']}_products.json"
+    categories_file = Path(DATA_DIR) / f"{store['code']}_categories.json"
+    _save_json(products_file, products)
+    _save_json(categories_file, categories)
+
+    return str(products_file), str(categories_file)
+
+
 # ──────────────────────────────────────────────────────────────────────────
 #  Endpoints
 # ──────────────────────────────────────────────────────────────────────────
@@ -218,7 +267,28 @@ def health():
 @app.get("/api/summary")
 def summary():
     _require_ready()
-    return STATE["summary"]
+    summary_data = STATE["summary"].copy()
+    summary_data["magento_products_file"] = STATE.get("magento_products_file")
+    summary_data["magento_cat_file"] = STATE.get("magento_cat_file")
+    return summary_data
+
+
+@app.post("/api/magento-reload")
+def magento_reload(fetch: bool = Query(False, description="Fetch fresh Magento data from the Magento API when true; otherwise reload existing files.")):
+    if fetch:
+        products_file, categories_file = _fetch_magento_data()
+        message = f"Fetched Magento data to {products_file} and {categories_file}."
+        # Clear cached file selection if config uses dynamic resolution.
+    else:
+        message = "Reloaded existing Magento Magento data files."
+
+    _load_everything()
+    return {
+        "status": "ok",
+        "message": message,
+        "magento_products_file": STATE.get("magento_products_file"),
+        "magento_cat_file": STATE.get("magento_cat_file"),
+    }
 
 
 @app.get("/api/reports")
@@ -307,7 +377,7 @@ def report_detail(sku: str):
     if row is None:
         # Compute on demand (e.g. a SKU only present in Magento, not PIM)
         report = compare_product(
-            sku, STATE["pim_map"], STATE["magento_map"], STATE["id_to_sku"]
+            sku, STATE["pim_map"], STATE["magento_map"], STATE["id_to_sku"], STATE.get("magento_cat_tree")
         )
         if not report["found_in_pim"] and not report["found_in_magento"]:
             raise HTTPException(status_code=404, detail=f"SKU '{sku}' not found.")

@@ -27,6 +27,9 @@ def _has_issues(report: dict) -> bool:
         or cc["skus_only_in_magento"]
     ):
         return True
+    catc = report.get("category_comparison")
+    if catc and not catc["matches"]:
+        return True
     return False
 
 def _issue_categories(report: dict) -> list:
@@ -49,6 +52,9 @@ def _issue_categories(report: dict) -> list:
     cc = report.get("configurable_comparison")
     if cc and (not cc["count_match"] or cc["skus_only_in_pim"] or cc["skus_only_in_magento"]):
         cats.append("Configurable Child Issue")
+    catc = report.get("category_comparison")
+    if catc and not catc["matches"]:
+        cats.append("Category Link Issue")
     return cats
 
 _CSS = """
@@ -253,7 +259,24 @@ _JS = r"""
             html += '</div>';
         }
 
-        if (!r.type_comparison && !r.bundle_comparison && !r.configurable_comparison) {
+        if (r.category_comparison) {
+            const cat = r.category_comparison;
+            html += `<div class="detail-section"><h4>Category Links</h4>
+                <p>PIM categories: <b>${(cat.pim_category_ids || []).join(', ') || '—'}</b></p>
+                <p>Magento links: <b>${(cat.magento_category_ids || []).join(', ') || '—'}</b></p>
+                <p>${cat.matches ? '<span class="badge badge-ok">✅ Match</span>' : '<span class="badge badge-err">❌ Mismatch</span>'}</p>`;
+            if (cat.missing_in_magento && cat.missing_in_magento.length)
+                html += `<div style="margin-top:6px">❌ Missing in Magento: <span class="sku-list">${cat.missing_in_magento.map(s=>`<span class="sku-chip missing">${s}</span>`).join('')}</span></div>`;
+            if (cat.extra_in_magento && cat.extra_in_magento.length)
+                html += `<div style="margin-top:6px">ℹ️ Extra in Magento: <span class="sku-list">${cat.extra_in_magento.map(s=>`<span class="sku-chip extra">${s}</span>`).join('')}</span></div>`;
+            if (cat.position_mismatches && cat.position_mismatches.length)
+                html += `<div style="margin-top:6px">⚠️ Position mismatches: <span class="sku-list">${cat.position_mismatches.map(x=>`<span class="sku-chip">${x.category_id} (${x.expected_position}→${x.actual_position})</span>`).join('')}</span></div>`;
+            if (cat.unknown_categories && cat.unknown_categories.length)
+                html += `<div style="margin-top:6px">⚠️ Unknown category IDs: <span class="sku-list">${cat.unknown_categories.map(s=>`<span class="sku-chip">${s}</span>`).join('')}</span></div>`;
+            html += '</div>';
+        }
+
+        if (!r.type_comparison && !r.bundle_comparison && !r.configurable_comparison && !r.category_comparison) {
             html += `<div class="detail-section"><h4>Summary</h4>
                 <span class="badge badge-ok">✅ Found in Magento — no structural comparison available for this type</span>
             </div>`;
@@ -358,6 +381,7 @@ def _build_row(report: dict, pim_map: dict, magento_map: dict) -> dict:
         "type_comparison":         report.get("type_comparison"),
         "bundle_comparison":       report.get("bundle_comparison"),
         "configurable_comparison": report.get("configurable_comparison"),
+        "category_comparison":     report.get("category_comparison"),
     }
 
 def generate_html_report(
@@ -365,12 +389,13 @@ def generate_html_report(
     magento_map:  dict,
     id_to_sku:   dict,
     output_path: str = "batch_report.html",
+    magento_cat_tree: list | None = None,
 ) -> str:
     import json as _json
     from comparison.orchestrator import batch_compare
 
     print("Running batch comparison ...")
-    reports = batch_compare(pim_map, magento_map, id_to_sku)
+    reports = batch_compare(pim_map, magento_map, id_to_sku, magento_cat_tree)
 
     total        = len(reports)
     perfect      = sum(1 for r in reports if not _has_issues(r))
@@ -378,6 +403,7 @@ def generate_html_report(
     type_mm      = sum(1 for r in reports if r.get("type_comparison") and not r["type_comparison"]["types_match"])
     bundle_iss   = sum(1 for r in reports if _has_issues(r) and r.get("bundle_comparison"))
     config_iss   = sum(1 for r in reports if _has_issues(r) and r.get("configurable_comparison"))
+    category_iss = sum(1 for r in reports if _has_issues(r) and r.get("category_comparison") and not r["category_comparison"]["matches"])
     total_issues = total - perfect
 
     rows      = [_build_row(r, pim_map, magento_map) for r in reports]
@@ -438,6 +464,7 @@ def generate_html_report(
   <div class="card warn"><div class="num">{type_mm:,}</div><div class="lbl">Type Mismatches</div></div>
   <div class="card info"><div class="num">{bundle_iss:,}</div><div class="lbl">Bundle Issues</div></div>
   <div class="card info"><div class="num">{config_iss:,}</div><div class="lbl">Configurable Issues</div></div>
+  <div class="card info"><div class="num">{category_iss:,}</div><div class="lbl">Category Link Issues</div></div>
 </div>
 <div class="toolbar">
   <input id="search" type="text" placeholder="Search by SKU or name ..."/>

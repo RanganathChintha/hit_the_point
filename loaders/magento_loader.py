@@ -96,11 +96,31 @@ def build_magento_category_map(magento_cat_tree: list) -> dict:
 
     def recurse(nodes):
         for node in nodes:
-            cat_map[node["id"]] = {
+            node_id = node.get("id")
+            if node_id is None:
+                # Skip malformed nodes
+                recurse(node.get("children_data", []))
+                continue
+
+            entry = {
                 "name":      node.get("name", "Unknown"),
                 "parent_id": node.get("parent_id"),
                 "level":     node.get("level", 0),
+                "position":  node.get("position"),
             }
+
+            # Normalize keys: store both int and str forms when possible so
+            # lookup is resilient to differing ID types in product data.
+            try:
+                int_id = int(node_id)
+            except Exception:
+                int_id = None
+
+            if int_id is not None:
+                cat_map[int_id] = entry
+            # Also store string form
+            cat_map[str(node_id)] = entry
+
             recurse(node.get("children_data", []))
 
     recurse(magento_cat_tree)
@@ -110,11 +130,17 @@ def extract_magento_categories(data) -> list:
     """Extract the root list from magento_categories.json."""
     if isinstance(data, list):
         return data
+    # If the top-level structure is a single category node (has an 'id'),
+    # return it as a one-element list so its own ID is included in the tree.
+    if isinstance(data, dict) and "id" in data:
+        return [data]
+
     for key in ("children_data", "categories", "data", "items"):
         if isinstance(data, dict) and key in data:
             val = data[key]
             if isinstance(val, list):
                 return val
+
     if isinstance(data, dict):
         for v in data.values():
             if isinstance(v, list):

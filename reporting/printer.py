@@ -25,6 +25,9 @@ def _has_issues(report: dict) -> bool:
         or cc["skus_only_in_magento"]
     ):
         return True
+    catc = report.get("category_comparison")
+    if catc and not catc["matches"]:
+        return True
     return False
 
 def print_report(report: dict) -> None:
@@ -89,6 +92,21 @@ def print_report(report: dict) -> None:
         if cc["skus_only_in_magento"]:
             print(f"  {INFO} In Magento but NOT in PIM    : {cc['skus_only_in_magento']}")
 
+    catc = report.get("category_comparison")
+    if catc:
+        print(f"\n{'CATEGORY LINK COMPARISON':─<70}")
+        print(f"  PIM categories : {catc['pim_category_ids']}")
+        print(f"  Magento links  : {catc['magento_category_ids']}")
+        print(f"  {OK if catc['matches'] else ERR}  Category links {'match' if catc['matches'] else 'MISMATCH'}.")
+        if catc["missing_in_magento"]:
+            print(f"  {ERR} PIM categories missing in Magento : {catc['missing_in_magento']}")
+        if catc["extra_in_magento"]:
+            print(f"  {INFO} Magento-only categories           : {catc['extra_in_magento']}")
+        if catc["position_mismatches"]:
+            print(f"  {WARN} Position mismatches               : {catc['position_mismatches']}")
+        if catc["unknown_categories"]:
+            print(f"  {WARN} Unknown category IDs              : {catc['unknown_categories']}")
+
     print(SEP)
 
 def summarize_batch(reports: list) -> None:
@@ -98,6 +116,7 @@ def summarize_batch(reports: list) -> None:
     type_mm    = [r for r in reports if r.get("type_comparison") and not r["type_comparison"]["types_match"]]
     bundle_iss = [r for r in reports if _has_issues(r) and r.get("bundle_comparison")]
     config_iss = [r for r in reports if _has_issues(r) and r.get("configurable_comparison")]
+    category_iss = [r for r in reports if _has_issues(r) and r.get("category_comparison") and not r["category_comparison"]["matches"]]
     perfect    = [r for r in reports if not _has_issues(r)]
 
     print(f"\n{'BATCH SUMMARY  (PIM → Magento)':═<70}")
@@ -107,6 +126,7 @@ def summarize_batch(reports: list) -> None:
     print(f"  {ERR} Type mismatches           : {len(type_mm)}")
     print(f"  {ERR} Bundle slot issues        : {len(bundle_iss)}")
     print(f"  {ERR} Configurable child issues : {len(config_iss)}")
+    print(f"  {ERR} Category link issues      : {len(category_iss)}")
     print("═" * 70)
 
     if missing:
@@ -129,6 +149,11 @@ def summarize_batch(reports: list) -> None:
     if config_iss:
         print(f"\n  {ERR} CONFIGURABLE ISSUES ({len(config_iss)}):")
         for r in config_iss:
+            print(f"    • {r['sku']}")
+
+    if category_iss:
+        print(f"\n  {ERR} CATEGORY LINK ISSUES ({len(category_iss)}):")
+        for r in category_iss:
             print(f"    • {r['sku']}")
 
     issues = [r for r in reports if _has_issues(r)]

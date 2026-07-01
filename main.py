@@ -1,5 +1,6 @@
 ﻿import os
-from config                      import MAGENTO_PRODUCTS_FILE, MAGENTO_CAT_FILE, PIM_PRODUCTS_FILE, PIM_CAT_FILE
+from config                      import get_magento_products_file, get_magento_cat_file, PIM_PRODUCTS_FILE, PIM_CAT_FILE, DATA_DIR
+from pathlib import Path
 from loaders.json_loader         import load_json
 from loaders.pim_loader          import parse_pim_products
 from loaders.magento_loader       import parse_magento_products, build_magento_id_to_sku, extract_magento_categories
@@ -12,8 +13,8 @@ from analysis.market_counter     import build_market_index, list_all_markets, ge
 
 def _load_all() -> dict:
     print("Loading files ...")
-    magento_raw     = load_json(MAGENTO_PRODUCTS_FILE)
-    magento_cat_raw = load_json(MAGENTO_CAT_FILE)
+    magento_raw     = load_json(get_magento_products_file())
+    magento_cat_raw = load_json(get_magento_cat_file())
     pim_raw        = load_json(PIM_PRODUCTS_FILE)
     pim_cat_raw    = load_json(PIM_CAT_FILE)
 
@@ -21,6 +22,22 @@ def _load_all() -> dict:
     magento_map      = parse_magento_products(magento_raw)
     id_to_sku       = build_magento_id_to_sku(magento_raw)
     magento_cat_tree = extract_magento_categories(magento_cat_raw)
+
+    # Also merge any other category files found in the data directory so
+    # category IDs referenced by products are more likely to be resolvable.
+    try:
+        data_dir = Path(DATA_DIR)
+        for p in sorted(data_dir.glob("*_categories.json")):
+            # Skip the primary file already loaded
+            if str(p) == get_magento_cat_file():
+                continue
+            other_raw = load_json(str(p))
+            other_tree = extract_magento_categories(other_raw)
+            if other_tree:
+                magento_cat_tree.extend(other_tree)
+    except Exception:
+        # Non-fatal; proceed with whatever tree we have
+        pass
     pim_map         = parse_pim_products(pim_raw)
     pim_cat_data    = pim_cat_raw
 
@@ -62,12 +79,12 @@ def _run_single_compare(ctx: dict) -> None:
         sku = input("SKU > ").strip()
         if not sku or sku.lower() in ("exit", "quit", "q"):
             break
-        report = compare_product(sku, ctx["pim_map"], ctx["magento_map"], ctx["id_to_sku"])
+        report = compare_product(sku, ctx["pim_map"], ctx["magento_map"], ctx["id_to_sku"], ctx.get("magento_cat_tree"))
         print_report(report)
 
 def _run_batch(ctx: dict) -> None:
     print("\nRunning batch comparison ...")
-    reports = batch_compare(ctx["pim_map"], ctx["magento_map"], ctx["id_to_sku"])
+    reports = batch_compare(ctx["pim_map"], ctx["magento_map"], ctx["id_to_sku"], ctx.get("magento_cat_tree"))
     summarize_batch(reports)
 
 def _run_market_counter(ctx: dict) -> None:
@@ -116,6 +133,7 @@ def _run_batch_html(ctx: dict) -> None:
         ctx["magento_map"],
         ctx["id_to_sku"],
         output_path=path,
+        magento_cat_tree=ctx.get("magento_cat_tree"),
     )
     try:
         import webbrowser

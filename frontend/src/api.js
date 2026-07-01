@@ -1,14 +1,19 @@
 // Thin API client. In dev, Vite proxies /api → FastAPI (see vite.config.js).
 const BASE = import.meta.env.VITE_API_BASE || ''
 
-async function get(path, params) {
+async function request(path, method = 'GET', params, body) {
   const url = new URL(`${BASE}${path}`, window.location.origin)
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v)
     })
   }
-  const res = await fetch(url)
+  const options = { method }
+  if (body !== undefined) {
+    options.headers = { 'Content-Type': 'application/json' }
+    options.body = JSON.stringify(body)
+  }
+  const res = await fetch(url, options)
   if (!res.ok) {
     let detail
     try {
@@ -25,13 +30,14 @@ async function get(path, params) {
 }
 
 export const api = {
-  health: () => get('/api/health'),
-  summary: () => get('/api/summary'),
-  reports: (params) => get('/api/reports', params),
-  reportDetail: (sku) => get(`/api/reports/${encodeURIComponent(sku)}`),
-  hierarchy: (sku) => get(`/api/hierarchy/${encodeURIComponent(sku)}`),
+  health: () => request('/api/health'),
+  summary: () => request('/api/summary'),
+  reports: (params) => request('/api/reports', 'GET', params),
+  reportDetail: (sku) => request(`/api/reports/${encodeURIComponent(sku)}`),
+  hierarchy: (sku) => request(`/api/hierarchy/${encodeURIComponent(sku)}`),
+  magentoReload: (fetch = false) => request('/api/magento-reload', 'POST', { fetch }),
   // Customer Group Comparison APIs
-  customerGroupComparison: (params) => get('/api/customer-group-comparison', params),
-  customerGroupComparisonSummary: () => get('/api/customer-group-comparison/summary'),
-  customerGroupComparisonDetail: (sku) => get(`/api/customer-group-comparison/${encodeURIComponent(sku)}`),
+  customerGroupComparison: (params) => request('/api/customer-group-comparison', 'GET', params),
+  customerGroupComparisonSummary: () => request('/api/customer-group-comparison/summary'),
+  customerGroupComparisonDetail: (sku) => request(`/api/customer-group-comparison/${encodeURIComponent(sku)}`),
 }

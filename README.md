@@ -163,7 +163,6 @@ market counter, and static HTML report export (`batch_report.html`).
 | `MAGENTO_BASE_URL` | Magento store base URL (e.g. `https://pprod2-oe.sivantos.com`) |
 | `MAGENTO_USERNAME` | Magento API username |
 | `MAGENTO_PASSWORD` | Magento API password |
-| `MAGENTO_WEBSITE_ID` | Magento website ID to filter by |
 
 ### Key Constants (`config.py`)
 
@@ -174,6 +173,7 @@ market counter, and static HTML report export (`batch_report.html`).
 | `MAGENTO_CUSTOMER_GROUP_FILE` | `data/magento_customer_group.json` | Customer group JSON file |
 | `PIM_PRODUCTS_FILE` | `data/pim_prod.json` | PIM product JSON file |
 | `PIM_CAT_FILE` | `data/pim_cat.json` | PIM category JSON file |
+| `MAGENTO_WEBSITE_ID` | `1` | Magento website ID — declare this in config.py only |
 | `MAGENTO_API_PAGE_SIZE` | `100` | Products per API request page |
 | `MAGENTO_API_DELAY` | `0.5` | Seconds between API calls |
 | `MAGENTO_API_MAX_RETRIES` | `5` | Max retry attempts for API calls |

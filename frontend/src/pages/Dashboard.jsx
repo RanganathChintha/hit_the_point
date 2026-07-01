@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../hooks.js'
@@ -7,7 +8,26 @@ const fmt = (n) => (n ?? 0).toLocaleString()
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { loading, data, error } = useAsync(() => api.summary(), [])
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [fetchMode, setFetchMode] = useState('previous')
+  const [reloadStatus, setReloadStatus] = useState(null)
+  const [reloadBusy, setReloadBusy] = useState(false)
+
+  const { loading, data, error } = useAsync(() => api.summary(), [refreshKey])
+
+  const handleReload = async (fetch) => {
+    setReloadBusy(true)
+    setReloadStatus(null)
+    try {
+      const result = await api.magentoReload(fetch)
+      setReloadStatus({ success: true, message: result.message })
+      setRefreshKey((value) => value + 1)
+    } catch (err) {
+      setReloadStatus({ success: false, message: err.detail || err.message || 'Reload failed.' })
+    } finally {
+      setReloadBusy(false)
+    }
+  }
 
   if (loading) return <Loading label="Loading summary…" />
   if (error) return <ErrorBox error={error} />
@@ -98,6 +118,57 @@ export default function Dashboard() {
             <div className="lbl">{c.lbl}</div>
           </div>
         ))}
+      </div>
+
+      <div className="panel magento-panel">
+        <h3>Magento Data Source</h3>
+        <div className="row-gap">
+          <label>
+            <input
+              type="radio"
+              name="magento-source"
+              value="previous"
+              checked={fetchMode === 'previous'}
+              onChange={() => setFetchMode('previous')}
+            />
+            Use existing previous Magento data files
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="magento-source"
+              value="fetch"
+              checked={fetchMode === 'fetch'}
+              onChange={() => setFetchMode('fetch')}
+            />
+            Fetch fresh Magento products and categories now
+          </label>
+          <div className="muted" style={{ marginTop: 8 }}>
+            Current product file: <code>{s.magento_products_file || 'n/a'}</code><br />
+            Current category file: <code>{s.magento_cat_file || 'n/a'}</code>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              className="btn"
+              disabled={reloadBusy}
+              onClick={() => handleReload(fetchMode === 'fetch')}
+            >
+              {reloadBusy ? 'Processing…' : fetchMode === 'fetch' ? 'Fetch Magento data + reload' : 'Reload existing data'}
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => handleReload(false)}
+              disabled={reloadBusy}
+            >
+              Reload existing data
+            </button>
+          </div>
+          {reloadStatus && (
+            <div className={`muted ${reloadStatus.success ? 'ok' : 'err'}`}>
+              {reloadStatus.message}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="panel">

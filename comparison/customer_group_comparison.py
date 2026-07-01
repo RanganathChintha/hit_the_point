@@ -9,9 +9,17 @@ For each SKU:
 """
 
 
-def compare_customer_groups(sku: str, pim_map: dict, magento_groups: dict) -> dict:
+def compare_customer_groups(sku: str, pim_map: dict, magento_groups: dict, magento_map: dict | None = None) -> dict:
     """
     Compare PIM customer labels against Magento customer groups for a single SKU.
+    The SKU flow is:
+      1) PIM SKU
+      2) Magento product catalog
+      3) Magento customer-group mapping
+
+    If the SKU is not present in Magento products, the Magento side is treated
+    as empty and no customer-group mappings are consulted.
+
     Bidirectional: shows groups unique to each system and shared groups.
 
     "Fully matched" means:
@@ -39,7 +47,6 @@ def compare_customer_groups(sku: str, pim_map: dict, magento_groups: dict) -> di
     pim_labels = (
         pim_entry.get("customer_labels", [])
         if pim_entry else []
-        
     )
 
     pim_groups = {
@@ -48,7 +55,10 @@ def compare_customer_groups(sku: str, pim_map: dict, magento_groups: dict) -> di
         if cl.get("code")
     }
 
-    magento_codes = sorted(magento_groups.get(sku, set()))
+    if magento_map is not None and sku not in magento_map:
+        magento_codes = []
+    else:
+        magento_codes = sorted(magento_groups.get(sku, set()))
     pim_codes = sorted(pim_groups.keys())
 
     shared = set(pim_codes) & set(magento_codes)
@@ -83,9 +93,12 @@ def batch_compare_customer_groups(pim_map: dict, magento_groups: dict, magento_m
     """
     Run compare_customer_groups for every SKU in PIM.
 
+    The flow is always:
+      PIM SKU -> Magento products -> Magento customer-group mapping.
+
     If magento_map is provided, only SKUs that also exist in the Magento
-    product catalog are included. This ensures we start from PIM as the
-    source of truth and only compare against SKUs actually present in Magento.
+    product catalog are included. This ensures PIM is the starting point and
+    Magento group data is only consulted for actual Magento products.
     """
     skus = set(pim_map.keys())
     if magento_map is not None:
@@ -93,5 +106,5 @@ def batch_compare_customer_groups(pim_map: dict, magento_groups: dict, magento_m
 
     results = []
     for sku in sorted(skus):
-        results.append(compare_customer_groups(sku, pim_map, magento_groups))
+        results.append(compare_customer_groups(sku, pim_map, magento_groups, magento_map))
     return results
