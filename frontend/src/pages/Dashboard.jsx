@@ -35,11 +35,9 @@ export default function Dashboard() {
   const s = data
   const goCat = (cat) => navigate(`/comparison?category=${encodeURIComponent(cat)}`)
 
-  // Update the subtitle to show market matching stats if available
   let subtitleContent = (
     <>
       {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
-      &nbsp;·&nbsp; {fmt(s.market_count)} markets
     </>
   )
 
@@ -47,7 +45,6 @@ export default function Dashboard() {
     subtitleContent = (
       <>
         {fmt(s.pim_sku_count)} PIM SKUs &nbsp;·&nbsp; {fmt(s.magento_sku_count)} Magento SKUs
-        &nbsp;·&nbsp; {fmt(s.market_count)} markets
         &nbsp;·&nbsp; {fmt(s.customer_group_comparison?.total_skus_with_groups ?? 0)} SKUs with groups
       </>
     )
